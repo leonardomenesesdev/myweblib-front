@@ -1,24 +1,15 @@
 import React from 'react';
-import { BookOpen, Mail, Lock, User } from 'lucide-react';
+import { BookOpen, Mail, Lock } from 'lucide-react';
 import { GlassForm, type FormField } from '../../components/GlassForm'; // IMPORTAR a interface
+import { Route } from 'react-router-dom';
+import Registration from '../Registration/Registration';
 
-const Registration: React.FC = () => {
-  // Configuração dos campos do formulário de registro
-  const registerFields: FormField[] = [
-    {
-      name: 'name',
-      type: 'text',
-      placeholder: 'Nome completo',
-      icon: <User className="w-5 h-5 text-white/60" />,
-      validation: (value) => {
-        if (!value.trim()) return 'Nome é obrigatório';
-        return null;
-      }
-    },
+const Login: React.FC = () => {
+  const loginFields: FormField[] = [
     {
       name: 'email',
       type: 'email',
-      placeholder: 'E-mail institucional',
+      placeholder: 'E-mail',
       icon: <Mail className="w-5 h-5 text-white/60" />,
       validation: (value) => {
         if (!value.trim()) return 'E-mail é obrigatório';
@@ -37,33 +28,22 @@ const Registration: React.FC = () => {
         return null;
       }
     },
-    {
-      name: 'confirmPassword',
-      type: 'password',
-      placeholder: 'Confirmar senha',
-      icon: <Lock className="w-5 h-5 text-white/60" />,
-      validation: (value, allValues) => {
-        if (value !== allValues?.password) return 'As senhas não coincidem';
-        return null;
-      }
-    }
   ];
 
-  // Handler para submissão do formulário
   const handleRegister = (data: Record<string, string>) => {
-    console.log('Cadastro realizado:', data);
-    alert('Cadastro realizado com sucesso!');
+    console.log('Login realizado:', data);
+    alert('Login realizado com sucesso!');
   };
 
   // Conteúdo do footer (link para login)
   const footerContent = (
     <p className="text-white/80 text-sm">
-      Já tem uma conta?{' '}
+      Ainda não tem uma conta?{' '}
       <button
-        onClick={() => alert('Redirecionar para login')}
+        onClick={() => <Route path='/cadastro' element={<Registration></Registration>}></Route>}
         className="font-semibold text-white hover:underline"
       >
-        Fazer login
+        Criar conta
       </button>
     </p>
   );
@@ -82,12 +62,12 @@ const Registration: React.FC = () => {
       <div className="relative w-full max-w-md">
         {/* Componente GlassForm reutilizável */}
         <GlassForm
-          title="Criar Conta"
-          subtitle="Junte-se ao Clube do Livro Unifor"
+          title="Fazer Login"
+          subtitle="Que bom te ter de volta!"
           icon={<BookOpen className="w-8 h-8 text-white" />}
-          fields={registerFields}
+          fields={loginFields}
           onSubmit={handleRegister}
-          submitButtonText="Criar Conta"
+          submitButtonText="Fazer login"
           footerContent={footerContent}
         />
 
@@ -102,4 +82,4 @@ const Registration: React.FC = () => {
   );
 };
 
-export default Registration;
+export default Login;
