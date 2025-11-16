@@ -31,7 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="relative w-full">
       {/* Glass container */}
-      <div className="backdrop-blur-2xl bg-blue-600/20 border-b border-blue-400/30 shadow-lg">
+      <div className="backdrop-blur-2xl bg-blue-10 border-b border-blue-400/30 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             
