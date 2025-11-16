@@ -1,10 +1,17 @@
-import React from 'react';
 import { BookOpen, Mail, Lock, User } from 'lucide-react';
-import { GlassForm, type FormField } from '../../components/GlassForm'; // IMPORTAR a interface
+import { GlassForm, type FormField } from '../../components/GlassForm';
 import { Link } from 'react-router-dom';
+import type { RegisterRequest } from "../../types/User";
+import { registerUser } from "../../services/userService";
+import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 
 const Registration: React.FC = () => {
-  // Configuração dos campos do formulário de registro
+
+
+const [errorMessage, setErrorMessage] = useState("");
+const navigate = useNavigate();
+
   const registerFields: FormField[] = [
     {
       name: 'name',
@@ -50,13 +57,39 @@ const Registration: React.FC = () => {
     }
   ];
 
-  // Handler para submissão do formulário
-  const handleRegister = (data: Record<string, string>) => {
-    console.log('Cadastro realizado:', data);
-    alert('Cadastro realizado com sucesso!');
+async function handleRegister(values: any) {
+  const payload: RegisterRequest = {
+    nome: values.name,
+    email: values.email,
+    senha: values.password,
   };
 
-  // Conteúdo do footer (link para login)
+  try {
+    setErrorMessage(""); // limpa erro antes de enviar
+    
+    const response = await registerUser(payload);
+    console.log("Usuário criado:", response);
+
+    // redireciona para login
+    navigate("/login");
+
+  } catch (error: any) {
+    // se vier do Axios
+    if (error.response) {
+      if (error.response.status === 409) {
+        setErrorMessage("E-mail já está em utilização.");
+      } else {
+        setErrorMessage("Erro ao registrar usuário.");
+      }
+    } else {
+      setErrorMessage("Falha de conexão com o servidor.");
+    }
+
+    console.error("Erro ao registrar usuário:", error);
+  }
+}
+
+
   const footerContent = (
     <p className="text-white/80 text-sm">
       Já tem uma conta?{' '}
@@ -68,17 +101,13 @@ const Registration: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden flex items-center justify-center p-4">
-      {/* Background gradiente azul Unifor */}
       <div className="absolute inset-0 bg-linear-to-br from-blue-700 via-blue-800 to-slate-900" />
-      
-      {/* Elementos decorativos de fundo */}
-      <div className="absolute top-20 left-10 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-      <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-white/5 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '2s' }} />
-      
-      {/* Container principal */}
+
       <div className="relative w-full max-w-md">
-        {/* Componente GlassForm reutilizável */}
+        {errorMessage && (
+  <p className="text-red-400 text-center mb-4">{errorMessage}</p>
+)}
+
         <GlassForm
           title="Criar Conta"
           subtitle="Junte-se ao Clube do Livro Unifor"
@@ -89,7 +118,6 @@ const Registration: React.FC = () => {
           footerContent={footerContent}
         />
 
-        {/* Texto institucional */}
         <div className="mt-6 text-center">
           <p className="text-white/60 text-xs">
             © 2025 Universidade de Fortaleza - Todos os direitos reservados
