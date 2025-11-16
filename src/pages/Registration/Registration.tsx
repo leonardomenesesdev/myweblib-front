@@ -1,6 +1,7 @@
 import React from 'react';
 import { BookOpen, Mail, Lock, User } from 'lucide-react';
 import { GlassForm, type FormField } from '../../components/GlassForm'; // IMPORTAR a interface
+import { Link } from 'react-router-dom';
 
 const Registration: React.FC = () => {
   // Configuração dos campos do formulário de registro
@@ -59,12 +60,9 @@ const Registration: React.FC = () => {
   const footerContent = (
     <p className="text-white/80 text-sm">
       Já tem uma conta?{' '}
-      <button
-        onClick={() => alert('Redirecionar para login')}
-        className="font-semibold text-white hover:underline"
-      >
+      <Link to={"/login"} className="font-semibold text-white hover:underline">
         Fazer login
-      </button>
+      </Link>
     </p>
   );
 

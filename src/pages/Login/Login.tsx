@@ -1,8 +1,7 @@
 import React from 'react';
 import { BookOpen, Mail, Lock } from 'lucide-react';
 import { GlassForm, type FormField } from '../../components/GlassForm'; // IMPORTAR a interface
-import { Route } from 'react-router-dom';
-import Registration from '../Registration/Registration';
+import { Link } from 'react-router-dom';
 
 const Login: React.FC = () => {
   const loginFields: FormField[] = [
@@ -39,12 +38,9 @@ const Login: React.FC = () => {
   const footerContent = (
     <p className="text-white/80 text-sm">
       Ainda não tem uma conta?{' '}
-      <button
-        onClick={() => <Route path='/cadastro' element={<Registration></Registration>}></Route>}
-        className="font-semibold text-white hover:underline"
-      >
+      <Link to={"/registro"} className="font-semibold text-white hover:underline">
         Criar conta
-      </button>
+      </Link>
     </p>
   );
 
