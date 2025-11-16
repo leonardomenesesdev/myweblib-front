@@ -4,11 +4,12 @@ import './index.css'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Login from './pages/Login/Login.tsx';
 import Registration from './pages/Registration/Registration.tsx';
+import HomePage from './pages/HomePage/index.tsx';
 
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <div>HomePage</div>,
+    element: <HomePage />,
   },
   {
     path: "/login",
