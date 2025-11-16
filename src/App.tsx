@@ -1,19 +1,10 @@
 import './App.css'
-import {Route, Routes, BrowserRouter} from 'react-router-dom'
-import Registration from './pages/Registration/Registration'
-import LoginScreen from './pages/Login/Login'
-
+import { Outlet } from 'react-router-dom'
 
 function App() {
-
   return (
     <>
-    <BrowserRouter>
-      <Routes>
-        <Route path="*" element={<LoginScreen></LoginScreen>}></Route>
-        <Route path="/cadastro" element={<Registration />} />
-      </Routes>
-    </BrowserRouter>
+      <Outlet />
     </>
   )
 }
