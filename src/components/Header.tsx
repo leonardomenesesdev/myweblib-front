@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Home, User, LogIn, LogOut, Sun, Moon, Menu, X, BookOpen } from 'lucide-react';
+import React, { useState } from "react";
+import { Home, User, LogIn, LogOut, Menu, X, BookOpen } from "lucide-react";
+import { SearchBar } from "./SearchBar";
 
 export interface HeaderProps {
   isAuthenticated?: boolean;
@@ -8,8 +9,7 @@ export interface HeaderProps {
   onLogoutClick?: () => void;
   onHomeClick?: () => void;
   onProfileClick?: () => void;
-  isDarkMode?: boolean;
-  onThemeToggle?: () => void;
+  onSearch?: (query: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,153 +19,105 @@ export const Header: React.FC<HeaderProps> = ({
   onLogoutClick,
   onHomeClick,
   onProfileClick,
-  isDarkMode = false,
-  onThemeToggle
+  onSearch
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
-
   return (
-    <header className="relative w-full">
-      {/* Glass container */}
-      <div className="backdrop-blur-2xl bg-blue-10 border-b border-blue-400/30 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div className="inset-0 bg-linear-to-br from-blue-700 via-blue-800 to-slate-700">
+    
+      <header className="w-full backdrop-blur-xl bg-blue-600/40 border-b border-blue-300/20 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            
-            {/* Logo / Brand */}
-            <BookOpen className="w-8 h-8 text-white" />
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-2">
+    
+            {/* LOGO */}
+            <button onClick={onHomeClick} className="flex items-center gap-2 text-white">
+              <BookOpen className="w-8 h-8" />
+              <span className="font-bold text-lg hidden sm:block">WebLib</span>
+            </button>
+            {/* SEARCH BAR DESKTOP */}
+            <div className="hidden md:block flex-1 max-w-md mx-6">
+              <SearchBar onSearch={onSearch} />
+            </div>
+            {/* DESKTOP BUTTONS */}
+            <div className="hidden md:flex items-center gap-3">
               <button
                 onClick={onHomeClick}
-                className="flex items-center space-x-2 px-4 py-2 rounded-xl text-white hover:bg-blue-500/20 backdrop-blur-xl transition-all duration-200 border border-transparent hover:border-blue-300/30"
+                className="flex items-center gap-2 px-4 py-2 text-white hover:bg-blue-700/30 rounded-xl transition"
               >
                 <Home className="w-5 h-5" />
-                <span className="font-medium">Home</span>
+                <span>Home</span>
               </button>
-
               {isAuthenticated && (
                 <button
                   onClick={onProfileClick}
-                  className="flex items-center space-x-2 px-4 py-2 rounded-xl text-white hover:bg-blue-500/20 backdrop-blur-xl transition-all duration-200 border border-transparent hover:border-blue-300/30"
+                  className="flex items-center gap-2 px-4 py-2 text-white hover:bg-blue-700/30 rounded-xl transition"
                 >
                   <User className="w-5 h-5" />
-                  <span className="font-medium">
-                    {userName ? `Olá, ${userName}` : 'Perfil'}
-                  </span>
+                  <span>{userName ? `Olá, ${userName}` : "Perfil"}</span>
                 </button>
               )}
-            </nav>
-
-            {/* Desktop Actions */}
-            <div className="hidden md:flex items-center space-x-3">
-              {/* Theme Toggle */}
-              <button
-                onClick={onThemeToggle}
-                className="p-2.5 rounded-xl bg-blue-500/20 backdrop-blur-xl border border-blue-300/30 text-white hover:bg-blue-500/30 transition-all duration-200"
-                aria-label="Toggle theme"
-              >
-                {isDarkMode ? (
-                  <Sun className="w-5 h-5" />
-                ) : (
-                  <Moon className="w-5 h-5" />
-                )}
-              </button>
-
-              {/* Login/Logout Button */}
               {isAuthenticated ? (
                 <button
                   onClick={onLogoutClick}
-                  className="flex items-center space-x-2 px-4 py-2.5 bg-blue-500/30 backdrop-blur-xl border border-blue-300/40 rounded-xl text-white hover:bg-blue-500/40 transition-all duration-200 font-semibold"
+                  className="px-4 py-2 bg-white text-blue-700 rounded-xl font-semibold hover:bg-gray-100 transition shadow"
                 >
-                  <LogOut className="w-5 h-5" />
-                  <span>Sair</span>
+                  Sair
                 </button>
               ) : (
                 <button
                   onClick={onLoginClick}
-                  className="flex items-center space-x-2 px-4 py-2.5 bg-white text-blue-700 rounded-xl font-semibold hover:bg-white/90 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  className="px-4 py-2 bg-white text-blue-700 rounded-xl font-semibold hover:bg-gray-100 transition shadow"
                 >
-                  <LogIn className="w-5 h-5" />
-                  <span>Entrar</span>
+                  Entrar
                 </button>
               )}
             </div>
-
-            {/* Mobile menu button */}
-            <div className="md:hidden">
-              <button
-                onClick={toggleMobileMenu}
-                className="p-2 rounded-xl bg-blue-500/20 backdrop-blur-xl border border-blue-300/30 text-white hover:bg-blue-500/30 transition-all duration-200"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="w-6 h-6" />
-                ) : (
-                  <Menu className="w-6 h-6" />
-                )}
-              </button>
-            </div>
+            {/* MOBILE MENU BUTTON */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden p-2 rounded-xl bg-blue-700/30 text-white"
+            >
+              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
           </div>
-        </div>
-
-        {/* Mobile Navigation Menu */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden border-t border-blue-400/30">
-            <div className="px-4 pt-2 pb-3 space-y-2 backdrop-blur-2xl bg-blue-600/10">
+          {/* MOBILE MENU */}
+          {isMobileMenuOpen && (
+            <div className="md:hidden mt-2 pb-4 space-y-3 bg-blue-800/30 rounded-xl p-4 backdrop-blur-xl">
+    
+              {/* SEARCH MOBILE */}
+              <SearchBar onSearch={onSearch} className="w-full" />
               <button
                 onClick={() => {
                   onHomeClick?.();
                   setIsMobileMenuOpen(false);
                 }}
-                className="flex items-center space-x-3 w-full px-4 py-3 rounded-xl text-white hover:bg-blue-500/20 backdrop-blur-xl transition-all duration-200 border border-transparent hover:border-blue-300/30"
+                className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-blue-700/30 rounded-xl transition"
               >
                 <Home className="w-5 h-5" />
-                <span className="font-medium">Home</span>
+                <span>Home</span>
               </button>
-
               {isAuthenticated && (
                 <button
                   onClick={() => {
                     onProfileClick?.();
                     setIsMobileMenuOpen(false);
                   }}
-                  className="flex items-center space-x-3 w-full px-4 py-3 rounded-xl text-white hover:bg-blue-500/20 backdrop-blur-xl transition-all duration-200 border border-transparent hover:border-blue-300/30"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-blue-700/30 rounded-xl transition"
                 >
                   <User className="w-5 h-5" />
-                  <span className="font-medium">
-                    {userName ? `Olá, ${userName}` : 'Perfil'}
-                  </span>
+                  <span>{userName ? `Olá, ${userName}` : "Perfil"}</span>
                 </button>
               )}
-
-              <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-white/80 font-medium">Tema</span>
-                <button
-                  onClick={onThemeToggle}
-                  className="p-2 rounded-xl bg-blue-500/20 backdrop-blur-xl border border-blue-300/30 text-white hover:bg-blue-500/30 transition-all duration-200"
-                >
-                  {isDarkMode ? (
-                    <Sun className="w-5 h-5" />
-                  ) : (
-                    <Moon className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-
               {isAuthenticated ? (
                 <button
                   onClick={() => {
                     onLogoutClick?.();
                     setIsMobileMenuOpen(false);
                   }}
-                  className="flex items-center space-x-3 w-full px-4 py-3 bg-blue-500/30 backdrop-blur-xl border border-blue-300/40 rounded-xl text-white hover:bg-blue-500/40 transition-all duration-200 font-semibold"
+                  className="w-full px-4 py-3 bg-white text-blue-700 rounded-xl font-semibold shadow"
                 >
-                  <LogOut className="w-5 h-5" />
-                  <span>Sair</span>
+                  Sair
                 </button>
               ) : (
                 <button
@@ -173,16 +125,15 @@ export const Header: React.FC<HeaderProps> = ({
                     onLoginClick?.();
                     setIsMobileMenuOpen(false);
                   }}
-                  className="flex items-center space-x-3 w-full px-4 py-3 bg-white text-blue-700 rounded-xl font-semibold hover:bg-white/90 transition-all duration-200 shadow-lg"
+                  className="w-full px-4 py-3 bg-white text-blue-700 rounded-xl font-semibold shadow"
                 >
-                  <LogIn className="w-5 h-5" />
-                  <span>Entrar</span>
+                  Entrar
                 </button>
               )}
             </div>
-          </div>
-        )}
-      </div>
-    </header>
+          )}
+        </div>
+      </header>
+  </div>
   );
 };
