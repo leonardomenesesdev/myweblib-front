@@ -19,10 +19,7 @@ const BookRow: React.FC<BookRowProps> = ({ title, books, onCardClick }) => {
         {books.map((book) => (
           <BookCard
             key={book.id}
-            title={book.titulo}
-            author={book.autor}
-            coverUrl={book.capa}
-            genre={book.categorias?.[0]}
+            livro={book}
             onCardClick={() => onCardClick?.(book)}
           />
         ))}

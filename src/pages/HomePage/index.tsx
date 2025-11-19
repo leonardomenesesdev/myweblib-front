@@ -1,150 +1,93 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Header } from "@/components/Header";
+import React, { useEffect, useState } from "react";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import Category from "@/components/Category";
-// Importar a função de busca por título
-import { getLivros, getLivrosPorTitulo } from "@/services/bookService"; 
-import type { Book, EnumCategoria } from "../../types/Book";
-import { useNavigate } from "react-router-dom";
 import { BookGrid } from "@/components/BookGrid";
-
-// 💡 Função de utilidade DEBOUNCE
-const debounce = (func: (query: string) => void, delay: number) => {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  return (query: string) => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    timeoutId = setTimeout(() => {
-      func(query);
-    }, delay);
-  };
-};
-
+import { getLivros } from "@/services/bookService";
+import type { Book, EnumCategoria } from "../../types/Book";
+// Importamos a interface do contexto do layout
+import type { MainLayoutContextType } from "@/MainLayout";
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
-  const [livros, setLivros] = useState<Book[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [categorias, setCategorias] = useState<Map<EnumCategoria, Book[]>>(new Map());
+  
+  // 1. Recupera os dados de busca do Layout (PAI)
+  const { searchResults, searchQuery, isSearching } = useOutletContext<MainLayoutContextType>();
 
-  // NOVOS ESTADOS PARA A BUSCA
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Book[] | null>(null);
+  // 2. Estado local apenas para a vitrine padrão
+  const [livrosVitrine, setLivrosVitrine] = useState<Book[]>([]);
+  const [categorias, setCategorias] = useState<Map<EnumCategoria, Book[]>>(new Map());
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchLivros = async () => {
+    const carregarVitrine = async () => {
       try {
         const data = await getLivros();
-        setLivros(data);
+        setLivrosVitrine(data);
         
-        // Agrupar livros por categoria
-        const categoriasMap = new Map<EnumCategoria, Book[]>();
-        
+        // Lógica de agrupamento
+        const map = new Map<EnumCategoria, Book[]>();
         data.forEach((livro) => {
-          if (livro.categorias && livro.categorias.length > 0) {
-            livro.categorias.forEach((categoria) => {
-              if (!categoriasMap.has(categoria)) {
-                categoriasMap.set(categoria, []);
-              }
-              categoriasMap.get(categoria)!.push(livro);
-            });
-          }
+          livro.categorias?.forEach((cat) => {
+            if (!map.has(cat)) map.set(cat, []);
+            map.get(cat)!.push(livro);
+          });
         });
-        
-        setCategorias(categoriasMap);
+        setCategorias(map);
       } catch (error) {
-        console.error("Erro ao carregar livros:", error);
+        console.error(error);
       } finally {
         setLoading(false);
       }
     };
-
-    fetchLivros();
+    carregarVitrine();
   }, []);
-
-  const performSearch = useCallback(async (query: string) => {
-    const trimmedQuery = query.trim();
-    setSearchQuery(trimmedQuery);
-
-    if (trimmedQuery === "") {
-      setSearchResults(null);
-      return;
-    }
-
-    setLoading(true); 
-    try {
-      const data = await getLivrosPorTitulo(trimmedQuery);
-      setSearchResults(data);
-    } catch (error) {
-      console.error("Erro ao buscar livros por título:", error);
-      setSearchResults([]); 
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // 2. Cria a versão debounced da função, garantindo que ela só execute 300ms após a última digitação
-  const debouncedSearch = useMemo(() => debounce(performSearch, 300), [performSearch]);
 
   const handleBookClick = (livro: Book) => {
-    console.log("Livro clicado:", livro);
-    // Aqui você pode adicionar navegação para página de detalhes do livro
+    navigate(`/livro/${livro.id}`);
   };
-  
-  // Variável de controle para renderização
-  const exibirResultadosPesquisa = searchQuery && searchResults !== null;
 
   return (
-    <>
-      <div className="inset-0  min-h-screen">
-        <Header 
-          onLoginClick={() => navigate("/login")}
-          // 3. Passa a função debounced para o Header/SearchBar
-          onSearch={debouncedSearch} 
-        />
-
-        <div className="py-10 bg-white">
-          {loading ? (
-            <div className="px-6">
-              <p className="text-gray-900 text-xl">Carregando livros...</p>
-            </div>
-          ) : exibirResultadosPesquisa ? (
-            // EXIBIÇÃO DOS RESULTADOS DA BUSCA ATIVA
-            <div className="px-6">
-              <h2 className="text-2xl font-bold mb-6 text-blue-900">
-                Resultados para: "{searchQuery}"
-              </h2>
-              {searchResults && searchResults.length > 0 ? (
-                // 💡 Você deve criar um componente de listagem aqui, como um BookGrid.
-                // Por enquanto, apenas exibe a contagem.
-                <BookGrid
-                  livros={searchResults}
-                  onBookClick={handleBookClick}
-                ></BookGrid>
-              ) : (
-                <p className="text-gray-700">Nenhum livro encontrado com o título "{searchQuery}".</p>
-              )}
-            </div>
-          ) : categorias.size === 0 ? (
-            <div className="px-6">
-              <p className="text-gray-900 text-xl">Nenhum livro disponível no momento.</p>
-            </div>
+    <div className="py-10 px-6 max-w-7xl mx-auto">
+      {/* CONDICIONAL: Se estiver buscando, mostra resultados. Se não, mostra vitrine. */}
+      
+      {isSearching ? (
+        <div className="animate-fade-in">
+          <h2 className="text-2xl font-bold mb-6 text-blue-900">
+            Resultados para: "{searchQuery}"
+          </h2>
+          {searchResults && searchResults.length > 0 ? (
+            <BookGrid livros={searchResults} onBookClick={handleBookClick} />
           ) : (
-            // EXIBIÇÃO NORMAL DAS CATEGORIAS (NENHUMA BUSCA ATIVA)
-            <>
-              {/* Renderizar uma seção Category para cada categoria que tem livros */}
-              {Array.from(categorias.entries()).map(([categoria, livrosCategoria]) => (
-                <Category
-                  key={categoria}
-                  categoria={categoria}
-                  livros={livrosCategoria}
-                  onBookClick={handleBookClick}
-                />
-              ))}
-            </>
+            <div className="text-center py-10">
+              <p className="text-gray-600 text-lg">Poxa, não encontramos nada para "{searchQuery}".</p>
+              <button 
+                onClick={() => window.location.reload()} // Exemplo simples de reset, ou instruir usuário a limpar busca
+                className="mt-4 text-blue-600 hover:underline"
+              >
+                Voltar para a vitrine
+              </button>
+            </div>
           )}
         </div>
-      </div>
-    </>
+      ) : (
+        // VITRINE PADRÃO
+        <>
+          {loading ? (
+             <div className="flex justify-center items-center h-40">
+               <p className="text-gray-500">Carregando estante...</p>
+             </div>
+          ) : (
+            Array.from(categorias.entries()).map(([cat, livrosCat]) => (
+              <Category
+                key={cat}
+                categoria={cat}
+                livros={livrosCat}
+                onBookClick={handleBookClick}
+              />
+            ))
+          )}
+        </>
+      )}
+    </div>
   );
 };
 

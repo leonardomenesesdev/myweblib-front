@@ -35,6 +35,13 @@
     return response.data;
   };
 
+  export const getByAutorOrTitulo = async (query: string): Promise<Book[]> => {
+    const response = await axios.get(`${API_URL}/pesquisar/${query}`, {
+      params: { q: query }
+    });
+    return response.data;
+  }
+
   /**
    * Buscar livros por categoria
    */
