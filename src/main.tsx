@@ -3,12 +3,12 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
-// ⚠️ IMPORTANTE: Importe o Layout que criamos
 import { MainLayout } from './MainLayout';
 import Login from './pages/Login/Login.tsx';
 import Registration from './pages/Registration/Registration.tsx';
 import HomePage from './pages/HomePage/index.tsx';
 import BookDetailsPage from './pages/BookDetailsPage/index.tsx';
+import UserProfilePage from './pages/UserProfile/index.tsx';
 
 const router = createBrowserRouter([
   // GRUPO 1: Rotas Públicas (Login/Cadastro sem Header)
@@ -33,6 +33,10 @@ const router = createBrowserRouter([
       {
         path: "livro/:id", 
         element: <BookDetailsPage />
+      },
+        {
+        path: "perfil", 
+        element: <UserProfilePage />
       }
     ]
   }
