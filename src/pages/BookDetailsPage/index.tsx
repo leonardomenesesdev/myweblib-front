@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { Star, Heart, BookOpen, MessageSquare, Share2, MoreVertical, ArrowLeft, ShoppingCart } from 'lucide-react';
-import { getLivroById, getLivros } from "@/services/bookService";
+import { Star, Heart, BookOpen, MessageSquare, MoreVertical, ArrowLeft } from 'lucide-react';
+import { getLivroById } from "@/services/bookService";
 import type { MainLayoutContextType } from '@/MainLayout';
 import type { Book } from "../../types/Book";
 import { CATEGORIA_LABELS } from '../../types/Book';
@@ -82,7 +82,7 @@ const BookDetailsPage: React.FC = () => {
   const [showStatusDropdown, setShowStatusDropdown] = useState<boolean>(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState<string>('');
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [currentPage] = useState<number>(1);
 
 
 
@@ -187,7 +187,7 @@ const BookDetailsPage: React.FC = () => {
           {/* Left Column - Book Cover and Actions */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm p-6   border border-gray-100">
-              <div className="aspect-[2/3] w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+              <div className="w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
                 {livro.capa ? (
                     <img
                     src={livro.capa}
