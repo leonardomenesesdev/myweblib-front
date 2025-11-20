@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { Star, Heart, BookOpen, MessageSquare, Share2, MoreVertical, ArrowLeft, ShoppingCart } from 'lucide-react';
-import { getLivros } from "@/services/bookService";
+import { getLivroById, getLivros } from "@/services/bookService";
 import type { MainLayoutContextType } from '@/MainLayout';
 import type { Book } from "../../types/Book";
-
+import { CATEGORIA_LABELS } from '../../types/Book';
 // --- Interfaces Locais (View Models) ---
 // Estendemos os dados básicos para incluir o que a UI rica precisa
 interface BookStatistics {
@@ -84,6 +84,8 @@ const BookDetailsPage: React.FC = () => {
   const [newComment, setNewComment] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
 
+
+
   const statusOptions: StatusOption[] = [
     { value: 'QUERO_LER', label: 'Quero Ler', color: 'bg-blue-500' },
     { value: 'LENDO', label: 'Lendo', color: 'bg-yellow-500' },
@@ -103,8 +105,7 @@ const BookDetailsPage: React.FC = () => {
       setLoading(true);
       try {
         // Simulação de busca por ID (num cenário real, endpoint específico)
-        const todos = await getLivros();
-        const encontrado = todos.find((b) => b.id?.toString() === id);
+        const encontrado = await getLivroById(id ? parseInt(id) : 0);
         
         if (encontrado) {
           setLivro(encontrado);
@@ -156,10 +157,15 @@ const BookDetailsPage: React.FC = () => {
       </div>
     );
   };
+  
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
   if (!livro || !stats) return <div className="min-h-screen flex items-center justify-center">Livro não encontrado.</div>;
 
+    const categoriasParaExibir = 
+    (livro.categorias && livro.categorias.length > 0) ? livro.categorias :
+    (livro.categoriasLabels && livro.categoriasLabels.length > 0) ? livro.categoriasLabels : 
+    [];
   // Definindo valores padrão para campos que podem não existir no tipo Book simples
   const ratingValue = 4.5; // Mock fixo se não vier do backend
   const totalReviews = stats.resenhas;
@@ -259,9 +265,6 @@ const BookDetailsPage: React.FC = () => {
                   <Heart size={18} className={isFavorite ? 'fill-red-600' : ''} />
                   Favorito
                 </button>
-                <button className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
-                  <Share2 size={18} />
-                </button>
               </div>
 
 
@@ -273,64 +276,36 @@ const BookDetailsPage: React.FC = () => {
             {/* Title and Author */}
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
               <div className="flex flex-wrap gap-2 mb-4">
-                 {livro.categorias?.map(cat => (
+                 {categoriasParaExibir.map((cat: string) => (
                     <span key={cat} className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
-                        {cat}
+                        {/* Tenta traduzir, se não der (ex: já é label), exibe o próprio valor */}
+                        {CATEGORIA_LABELS[cat as keyof typeof CATEGORIA_LABELS] || cat}
                     </span>
                  ))}
+                 
+                 {categoriasParaExibir.length === 0 && (
+                    <span className="text-gray-400 text-xs italic bg-gray-100 px-2 py-1 rounded">
+                      Sem categoria
+                    </span>
+                 )}
               </div>
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2 leading-tight">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">
                 {livro.titulo}
               </h1>
               <p className="text-xl text-gray-600 font-medium">{livro.autor}</p>
               
               {/* Metadata Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 pt-8 border-t border-gray-100">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-8 border-t border-gray-100">
                  <div className="text-center md:text-left">
                     <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Ano</p>
                     <p className="text-gray-800 font-medium">{livro.ano || "N/A"}</p>
                  </div>
-                 <div className="text-center md:text-left">
-                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Páginas</p>
-                    <p className="text-gray-800 font-medium">320</p> {/* Mocked se não tiver no Book type */}
-                 </div>
-                 <div className="text-center md:text-left">
-                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Idioma</p>
-                    <p className="text-gray-800 font-medium">Português</p>
-                 </div>
-                 <div className="text-center md:text-left">
-                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Editora</p>
-                    <p className="text-gray-800 font-medium">Rocco</p>
-                 </div>
+
+
               </div>
             </div>
 
-            {/* Statistics Bar */}
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 overflow-x-auto">
-              <div className="flex justify-between min-w-[600px] gap-4 text-center">
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Leram</p>
-                  <p className="text-lg font-bold text-gray-900">{stats.leram.toLocaleString()}</p>
-                </div>
-                <div className="w-px bg-gray-200"></div>
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Lendo</p>
-                  <p className="text-lg font-bold text-yellow-600">{stats.lendo.toLocaleString()}</p>
-                </div>
-                <div className="w-px bg-gray-200"></div>
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Querem</p>
-                  <p className="text-lg font-bold text-blue-600">{stats.querem.toLocaleString()}</p>
-                </div>
-                <div className="w-px bg-gray-200"></div>
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Abandonos</p>
-                  <p className="text-lg font-bold text-red-500">{stats.abandonos.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Synopsis */}
+                      {/* Synopsis */}
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Sinopse</h2>
               <p className="text-gray-700 leading-relaxed whitespace-pre-line">
