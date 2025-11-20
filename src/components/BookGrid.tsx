@@ -24,6 +24,8 @@ export const BookGrid: React.FC<BookGridProps> = ({ livros, onBookClick }) => {
         <BookCard 
           key={livro.id} 
           livro={livro} 
+          onCardClick={() => onBookClick?.(livro)}
+
         />
       ))}
     </div>

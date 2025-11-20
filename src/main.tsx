@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
-// ⚠️ IMPORTANTE: Importe o Layout que criamos
 import { MainLayout } from './MainLayout';
 import Login from './pages/Login/Login.tsx';
 import Registration from './pages/Registration/Registration.tsx';
@@ -36,7 +35,7 @@ const router = createBrowserRouter([
         element: <BookDetailsPage />
       },
         {
-        path: "profile", 
+        path: "perfil", 
         element: <UserProfilePage />
       }
     ]

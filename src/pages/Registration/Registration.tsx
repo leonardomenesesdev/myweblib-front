@@ -61,7 +61,7 @@ async function handleRegister(values: any) {
   const payload: RegisterRequest = {
     nome: values.name,
     email: values.email,
-    senha: values.password,
+    password: values.password,
   };
 
   try {

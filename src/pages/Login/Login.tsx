@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BookOpen, Mail, Lock } from 'lucide-react';
-import { GlassForm, type FormField } from '../../components/GlassForm'; // IMPORTAR a interface
-import { Link } from 'react-router-dom';
+import { GlassForm, type FormField } from '../../components/GlassForm';
+import { Link, useNavigate } from 'react-router-dom';
+import { loginUser, setAuthToken } from "../../services/userService";
 
 const Login: React.FC = () => {
+  const navigate = useNavigate();
+  const [errorMessage, setErrorMessage] = useState("");
+
   const loginFields: FormField[] = [
     {
       name: 'email',
@@ -12,6 +16,7 @@ const Login: React.FC = () => {
       icon: <Mail className="w-5 h-5 text-white/60" />,
       validation: (value) => {
         if (!value.trim()) return 'E-mail é obrigatório';
+        // Regex simples para garantir formato básico de email
         if (!/\S+@\S+\.\S+/.test(value)) return 'E-mail inválido';
         return null;
       }
@@ -29,12 +34,40 @@ const Login: React.FC = () => {
     },
   ];
 
-  const handleRegister = (data: Record<string, string>) => {
-    console.log('Login realizado:', data);
-    alert('Login realizado com sucesso!');
-  };
+  // Lógica real de integração
+  async function handleLogin(values: any) {
+    setErrorMessage(""); // Limpa erros anteriores
 
-  // Conteúdo do footer (link para login)
+    try {
+      const response = await loginUser({
+        email: values.email,
+        // Backend geralmente espera 'password'. Se seu DTO Java usar 'senha', altere aqui.
+        // Vou usar 'password' baseado no padrão Spring Security AuthenticationDTO
+        password: values.password, 
+      } as any);
+
+      const token = response.data.token;
+
+      setAuthToken(token);
+      navigate("/"); // Redireciona para a Home
+      
+    } catch (error: any) {
+      console.error("Erro no login:", error);
+      
+      if (error.response) {
+        if (error.response.status === 403 || error.response.status === 401) {
+          setErrorMessage("E-mail ou senha incorretos.");
+        } else {
+          setErrorMessage("Erro ao processar login. Tente novamente.");
+        }
+      } else if (error.code === "ERR_NETWORK") {
+        setErrorMessage("Sem conexão com o servidor.");
+      } else {
+        setErrorMessage("Ocorreu um erro inesperado.");
+      }
+    }
+  }
+
   const footerContent = (
     <p className="text-white/80 text-sm">
       Ainda não tem uma conta?{' '}
@@ -49,20 +82,27 @@ const Login: React.FC = () => {
       {/* Background gradiente azul Unifor */}
       <div className="absolute inset-0 bg-linear-to-br from-blue-700 via-blue-800 to-slate-900" />
       
-      {/* Elementos decorativos de fundo */}
+      {/* Elementos decorativos de fundo (Mantidos do seu design) */}
       <div className="absolute top-20 left-10 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" />
       <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
       <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-white/5 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '2s' }} />
       
       {/* Container principal */}
-      <div className="relative w-full max-w-md">
-        {/* Componente GlassForm reutilizável */}
+      <div className="relative w-full max-w-md z-10">
+        
+        {/* Feedback de Erro (Novo) */}
+        {errorMessage && (
+          <div className="bg-red-500/20 border border-red-500/50 text-red-100 px-4 py-3 rounded-lg mb-4 text-center backdrop-blur-sm animate-fade-in">
+            {errorMessage}
+          </div>
+        )}
+
         <GlassForm
           title="Fazer Login"
           subtitle="Que bom te ter de volta!"
           icon={<BookOpen className="w-8 h-8 text-white" />}
           fields={loginFields}
-          onSubmit={handleRegister}
+          onSubmit={handleLogin}
           submitButtonText="Fazer login"
           footerContent={footerContent}
         />

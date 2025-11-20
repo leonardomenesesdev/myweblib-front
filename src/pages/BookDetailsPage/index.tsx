@@ -92,12 +92,7 @@ const BookDetailsPage: React.FC = () => {
     { value: 'LIDO', label: 'Lido', color: 'bg-green-500' }
   ];
 
-  // Efeito 1: Redirecionar se buscar no header global
-  useEffect(() => {
-    if (context?.isSearching) {
-      navigate("/");
-    }
-  }, [context?.isSearching, navigate]);
+
 
   // Efeito 2: Carregar dados do livro
   useEffect(() => {

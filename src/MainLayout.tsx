@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { getLivrosPorTitulo } from "@/services/bookService";
 import type { Book } from "@/types/Book";
+
 
 export interface MainLayoutContextType {
   searchQuery: string;
@@ -20,12 +21,27 @@ const debounce = (func: (query: string) => void, delay: number) => {
 };
 
 export const MainLayout: React.FC = () => {
-  // ✅ CORREÇÃO: Hook chamado DENTRO do componente
   const navigate = useNavigate();
-
+  
+  // Estado para controlar se o usuário está logado
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // Estado de busca
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Book[] | null>(null);
   const [loadingSearch, setLoadingSearch] = useState(false);
+
+  // 🛡️ Efeito de Proteção de Rota e Verificação de Auth
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      // Se não tem token, redireciona para login
+      navigate("/login");
+    } else {
+      // Se tem token, considera autenticado
+      setIsAuthenticated(true);
+    }
+  }, [navigate]);
 
   const handleSearch = useCallback(async (query: string) => {
     const trimmed = query.trim();
@@ -48,8 +64,14 @@ export const MainLayout: React.FC = () => {
     }
   }, []);
 
-  // Hook useMemo deve estar dentro do componente também
   const debouncedSearch = useMemo(() => debounce(handleSearch, 300), [handleSearch]);
+
+  // Handler de Logout
+  const handleLogout = () => {
+    localStorage.removeItem("token"); // Remove o token
+    setIsAuthenticated(false);
+    navigate("/login"); // Manda de volta pro login
+  };
 
   const contextValue: MainLayoutContextType = {
     searchQuery,
@@ -60,7 +82,17 @@ export const MainLayout: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header 
-        onLoginClick={() => { navigate('/login'); }} 
+        // Estado de autenticação
+        isAuthenticated={isAuthenticated}
+        // userName="Usuário" // Opcional: Se você buscar os dados do usuário, pode passar aqui
+        
+        // Funções de navegação
+        onHomeClick={() => navigate("/")}
+        onProfileClick={() => navigate("/perfil")}
+        onLoginClick={() => navigate("/login")}
+        onLogoutClick={handleLogout}
+        
+        // Busca
         onSearch={debouncedSearch} 
       />
 
