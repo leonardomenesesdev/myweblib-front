@@ -1,25 +1,32 @@
-import React, { useState, useCallback } from "react";
-import { Outlet } from "react-router-dom";
-import { Header } from "@/components/Header"; // Ajuste o caminho se necessário
+import React, { useState, useCallback, useMemo } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
+import { Header } from "@/components/Header";
 import { getLivrosPorTitulo } from "@/services/bookService";
 import type { Book } from "@/types/Book";
-import { useNavigate } from "react-router-dom";
 
-const navigate = useNavigate();
-
-// Interface do contexto que será consumido pela Home e outras páginas
 export interface MainLayoutContextType {
   searchQuery: string;
   searchResults: Book[] | null;
   isSearching: boolean;
 }
 
+// Função debounce auxiliar
+const debounce = (func: (query: string) => void, delay: number) => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  return (query: string) => {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func(query), delay);
+  };
+};
+
 export const MainLayout: React.FC = () => {
+  // ✅ CORREÇÃO: Hook chamado DENTRO do componente
+  const navigate = useNavigate();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Book[] | null>(null);
   const [loadingSearch, setLoadingSearch] = useState(false);
 
-  // Essa função é chamada pelo Header -> SearchBar (que já tem debounce interno)
   const handleSearch = useCallback(async (query: string) => {
     const trimmed = query.trim();
     setSearchQuery(trimmed);
@@ -41,7 +48,9 @@ export const MainLayout: React.FC = () => {
     }
   }, []);
 
-  // Dados que passaremos para os filhos (<Outlet />)
+  // Hook useMemo deve estar dentro do componente também
+  const debouncedSearch = useMemo(() => debounce(handleSearch, 300), [handleSearch]);
+
   const contextValue: MainLayoutContextType = {
     searchQuery,
     searchResults,
@@ -50,18 +59,15 @@ export const MainLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header Fixo no Topo */}
       <Header 
         onLoginClick={() => { navigate('/login'); }} 
-        onSearch={handleSearch} 
+        onSearch={debouncedSearch} 
       />
 
-      {/* Área de conteúdo variável */}
       <main className="flex-1 relative">
         {loadingSearch && (
             <div className="absolute top-0 left-0 w-full h-1 bg-blue-200 animate-pulse z-10" />
         )}
-        {/* O Outlet recebe o contexto e passa para a página atual (Home, Detalhes, etc) */}
         <Outlet context={contextValue} />
       </main>
     </div>

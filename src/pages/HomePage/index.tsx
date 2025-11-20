@@ -4,7 +4,6 @@ import Category from "@/components/Category";
 import { BookGrid } from "@/components/BookGrid";
 import { getLivros } from "@/services/bookService";
 import type { Book, EnumCategoria } from "../../types/Book";
-// Importamos a interface do contexto do layout
 import type { MainLayoutContextType } from "@/MainLayout";
 const HomePage: React.FC = () => {
   const navigate = useNavigate();

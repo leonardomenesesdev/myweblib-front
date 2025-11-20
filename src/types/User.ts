@@ -9,3 +9,24 @@ export interface RegisterResponse {
   nome: string;
   email: string;
 }
+export interface BookStatistics {
+  queroLer: number;
+  lendo: number;
+  resenhas: number;
+  lido: number;
+  favoritos?: number;
+  avaliacoes?: number;
+}
+
+export interface UserProfile {
+  id: number;
+  nome: string;
+  email: string;
+  avatar?: string;
+  bio?: string;
+  dataCadastro: string;
+  estatisticas: BookStatistics;
+}
+
+// Adicionei aqui para facilitar
+export type TabType = 'quero-ler' | 'lendo' | 'lido' | 'favoritos';
