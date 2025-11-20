@@ -3,6 +3,9 @@ import { Outlet } from "react-router-dom";
 import { Header } from "@/components/Header"; // Ajuste o caminho se necessário
 import { getLivrosPorTitulo } from "@/services/bookService";
 import type { Book } from "@/types/Book";
+import { useNavigate } from "react-router-dom";
+
+const navigate = useNavigate();
 
 // Interface do contexto que será consumido pela Home e outras páginas
 export interface MainLayoutContextType {
@@ -49,7 +52,7 @@ export const MainLayout: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header Fixo no Topo */}
       <Header 
-        onLoginClick={() => { /* Lógica de logout ou perfil */ }} 
+        onLoginClick={() => { navigate('/login'); }} 
         onSearch={handleSearch} 
       />
 

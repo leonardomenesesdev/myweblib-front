@@ -5,12 +5,21 @@
 
   const API_URL = "http://localhost:8080/api/livro";
 
+  interface PageResponse<T> {
+      content: T[];
+      totalPages: number;
+      totalElements: number;
+      last: boolean;
+      size: number;
+      number: number;
+  }
 
   export const getLivros = async (): Promise<Book[]> => {
-    const response = await axios.get(API_URL);
-    return response.data;
-  };
+      // REMOVI A BARRA EXTRA APÓS API_URL. Use ? direto.
+      const response = await axios.get<PageResponse<Book>>(`${API_URL}?page=0&size=60`);
 
+      return response.data.content; 
+    };
   /**
    * Buscar livro por ID
    */
