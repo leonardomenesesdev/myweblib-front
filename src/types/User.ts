@@ -17,6 +17,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   token: string;
+  id: number
 }
 
 export interface BookStatistics {

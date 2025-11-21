@@ -31,11 +31,10 @@ export const MainLayout: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Book[] | null>(null);
   const [loadingSearch, setLoadingSearch] = useState(false);
 
-  // 🛡️ Efeito de Proteção de Rota e Verificação de Auth
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
-      // Se não tem token, redireciona para login
+      // se não tem token, redireciona para login
       navigate("/login");
     } else {
       // Se tem token, considera autenticado
@@ -52,6 +51,7 @@ export const MainLayout: React.FC = () => {
       return;
     }
 
+    navigate('/', {replace: true});
     setLoadingSearch(true);
     try {
       const data = await getLivrosPorTitulo(trimmed);
