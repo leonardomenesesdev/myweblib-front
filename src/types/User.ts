@@ -23,7 +23,6 @@ export interface LoginResponse {
 export interface BookStatistics {
   queroLer: number;
   lendo: number;
-  resenhas: number;
   lido: number;
   favoritos?: number;
   avaliacoes?: number;

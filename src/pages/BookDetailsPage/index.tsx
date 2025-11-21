@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { Star, Heart, BookOpen, MessageSquare, Share2, MoreVertical, ArrowLeft } from 'lucide-react';
 import { getLivroById } from "@/services/bookService";
-import type { MainLayoutContextType } from '../../MainLayout';
+// ✅ Importamos o serviço de status que criamos
+import { updateReadingStatus, getReadingStatus, type ReadingStatusEnum } from "@/services/statusService";
+import type { MainLayoutContextType } from "@/MainLayout";
 import { type Book, CATEGORIA_LABELS } from "../../types/Book";
 
-// --- Interfaces Locais (View Models) ---
+// --- Interfaces Locais ---
 interface BookStatistics {
   leram: number;
   lendo: number;
@@ -24,10 +26,11 @@ interface Comment {
   likes: number;
 }
 
-type ReadingStatus = 'QUERO_LER' | 'LENDO' | 'LIDO' | '';
+// Estado do status pode ser o Enum ou string vazia (inicial)
+type ReadingStatusState = ReadingStatusEnum | '';
 
 interface StatusOption {
-  value: ReadingStatus;
+  value: ReadingStatusEnum;
   label: string;
   color: string;
 }
@@ -64,7 +67,7 @@ const mockComments: Comment[] = [
 const BookDetailsPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const context = useOutletContext<MainLayoutContextType>();
+  // const context = useOutletContext<MainLayoutContextType>(); // Opcional se não usar
   
   const [livro, setLivro] = useState<Book | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,7 +75,7 @@ const BookDetailsPage: React.FC = () => {
 
   // Estados de interação
   const [userRating, setUserRating] = useState<number>(0);
-  const [readingStatus, setReadingStatus] = useState<ReadingStatus>('');
+  const [readingStatus, setReadingStatus] = useState<ReadingStatusState>('');
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState<boolean>(false);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -85,16 +88,25 @@ const BookDetailsPage: React.FC = () => {
     { value: 'LIDO', label: 'Lido', color: 'bg-green-500' }
   ];
 
+  // 🚀 Carregamento Inicial (Livro + Status do Usuário)
   useEffect(() => {
     const fetchLivroDetalhado = async () => {
       if (!id) return;
       setLoading(true);
       try {
+        // 1. Busca o Livro
         const dadosLivro = await getLivroById(Number(id));
+        
         if (dadosLivro) {
           setLivro(dadosLivro);
           setStats(generateMockStats());
           setComments(mockComments);
+
+          // 2. ✅ Busca o Status de Leitura atual do usuário para este livro
+          const statusAtual = await getReadingStatus(Number(id));
+          if (statusAtual) {
+            setReadingStatus(statusAtual);
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar detalhes:", error);
@@ -104,6 +116,24 @@ const BookDetailsPage: React.FC = () => {
     };
     fetchLivroDetalhado();
   }, [id]);
+
+  // ✅ Handler para atualizar o status no Backend
+  const handleStatusChange = async (novoStatus: ReadingStatusEnum) => {
+    if (!livro) return;
+
+    // Atualização Otimista (Muda na tela antes de confirmar no server)
+    setReadingStatus(novoStatus);
+    setShowStatusDropdown(false);
+
+    try {
+      await updateReadingStatus(livro.id, novoStatus);
+      console.log("Status atualizado para:", novoStatus);
+    } catch (error) {
+      console.error("Erro ao salvar status:", error);
+      alert("Não foi possível salvar o status. Tente novamente.");
+      // setReadingStatus(''); // Opcional: reverter em caso de erro
+    }
+  };
 
   const handleCommentSubmit = () => {
     if (newComment.trim()) {
@@ -162,7 +192,7 @@ const BookDetailsPage: React.FC = () => {
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* --- Esquerda --- */}
+          {/* --- Esquerda (Capa e Ações) --- */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 h-fit">
               <div className="aspect-[2/3] w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center group">
@@ -206,14 +236,12 @@ const BookDetailsPage: React.FC = () => {
                 </button>
                 
                 {showStatusDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">                    
+                  <div className="absolute bottom-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">                    
                     {statusOptions.map((option) => (
                       <button
                         key={option.value}
-                        onClick={() => {
-                            setReadingStatus(option.value);
-                            setShowStatusDropdown(false);
-                        }}
+                        // ✅ Chama o handler correto
+                        onClick={() => handleStatusChange(option.value)}
                         className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center text-sm text-gray-700"
                       >
                         <span className={`inline-block w-2 h-2 rounded-full ${option.color} mr-3`}></span>
@@ -241,7 +269,7 @@ const BookDetailsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* --- Direita --- */}
+          {/* --- Direita (Conteúdo) --- */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
               
@@ -251,7 +279,6 @@ const BookDetailsPage: React.FC = () => {
                         {CATEGORIA_LABELS[cat as keyof typeof CATEGORIA_LABELS] || cat}
                     </span>
                  ))}
-                 
                  {categoriasParaExibir.length === 0 && (
                     <span className="text-gray-400 text-xs italic bg-gray-100 px-2 py-1 rounded">
                       Sem categoria
@@ -282,7 +309,7 @@ const BookDetailsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Stats Bar */}
+            {/* Estatísticas Gerais, Sinopse e Comentários... (Mantidos igual) */}
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 overflow-x-auto">
               <div className="flex justify-between min-w-[600px] gap-4 text-center">
                 <div className="flex-1">

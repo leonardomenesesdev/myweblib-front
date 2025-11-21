@@ -2,37 +2,50 @@ import React from 'react';
 import type { BookStatistics } from "@/types/User";
 
 interface ProfileStatsProps {
-  // Tornamos opcional (?) para que não quebre se o pai passar null/undefined
   stats?: BookStatistics | null; 
 }
 
-// Dados fictícios para visualização (Mock)
-const MOCK_STATS = {
-  queroLer: 15,
-  lendo: 3,
-  lido: 42,
-  favoritos: 12,
-  resenhas: 7,
-  // Campos extras para garantir compatibilidade com o tipo, se necessário
-  querem: 15,
-  relendo: 1,
-  abandonos: 0,
-  avaliacoes: 7
+// ✅ CORREÇÃO: Estado inicial zerado, não mais números aleatórios
+const EMPTY_STATS: BookStatistics = {
+  queroLer: 0,
+  lendo: 0,
+  lido: 0,
+  favoritos: 0,
+  avaliacoes: 0,
 };
 
 export const ProfileStats: React.FC<ProfileStatsProps> = ({ stats }) => {
   
-  // Lógica de Fallback: Se 'stats' não existir (null/undefined), usa o MOCK_STATS
-  // Se quiser forçar o mock mesmo vindo dados, mude para: const displayStats = MOCK_STATS;
-  const displayStats = stats || MOCK_STATS;
+  // Se 'stats' vier do backend, usa ele. Se não (carregando/erro), usa zeros.
+  const displayStats = stats || EMPTY_STATS;
 
   const statItems = [
-    { label: 'Quero Ler', value: displayStats.queroLer, color: 'text-purple-600' },
-    { label: 'Lendo', value: displayStats.lendo, color: 'text-yellow-600' },
-    { label: 'Lido', value: displayStats.lido, color: 'text-green-600' },
-    { label: 'Favoritos', value: displayStats.favoritos || 0, color: 'text-red-600' },
-    // Verifica se tem resenhas ou avaliacoes
-    { label: 'Avaliações', value: displayStats.resenhas || (displayStats as any).avaliacoes || 0, color: 'text-blue-600' },
+    { 
+      label: 'Quero Ler', 
+      value: displayStats.queroLer, 
+      color: 'text-purple-600' 
+    },
+    { 
+      label: 'Lendo', 
+      value: displayStats.lendo, 
+      color: 'text-yellow-600' 
+    },
+    { 
+      label: 'Lido', 
+      value: displayStats.lido, 
+      color: 'text-green-600' 
+    },
+    { 
+      label: 'Favoritos', 
+      value: displayStats.favoritos, 
+      color: 'text-red-600' 
+    },
+    { 
+      label: 'Avaliações', 
+      // Garante que exibe o campo correto (ajuste conforme seu DTO: avaliacoes ou resenhas)
+      value: displayStats.avaliacoes || 0, 
+      color: 'text-blue-600' 
+    },
   ];
 
   return (

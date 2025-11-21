@@ -50,7 +50,6 @@ const UserProfilePage: React.FC = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('lendo');
 
-  // 🚀 Efeito: Carrega dados REAIS do usuário ao entrar na tela
   useEffect(() => {
     const loadProfile = async () => {
       const userId = getCurrentUserId(); // Pega do localStorage
