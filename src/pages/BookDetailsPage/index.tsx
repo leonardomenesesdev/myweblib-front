@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { Star, Heart, BookOpen, MessageSquare, Share2, MoreVertical, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Star, Heart, BookOpen, MessageSquare, Share2, ArrowLeft, Trash2 } from 'lucide-react';
 import { getLivroById } from "@/services/bookService";
-// ✅ Importamos o serviço de status que criamos
 import { updateReadingStatus, getReadingStatus, type ReadingStatusEnum } from "@/services/statusService";
-import type { MainLayoutContextType } from "@/MainLayout";
+import { getCommentsByBook, createComment, deleteComment, type CommentResponse } from "@/services/comentarioService";
+import { getCurrentUserId } from "@/services/userService";
 import { type Book, CATEGORIA_LABELS } from "../../types/Book";
 
 // --- Interfaces Locais ---
@@ -17,16 +17,6 @@ interface BookStatistics {
   resenhas: number;
 }
 
-interface Comment {
-  id: number;
-  usuario: string;
-  avatar: string;
-  data: string;
-  comentario: string;
-  likes: number;
-}
-
-// Estado do status pode ser o Enum ou string vazia (inicial)
 type ReadingStatusState = ReadingStatusEnum | '';
 
 interface StatusOption {
@@ -42,45 +32,31 @@ const generateMockStats = (): BookStatistics => ({
   querem: Math.floor(Math.random() * 20000),
   relendo: Math.floor(Math.random() * 500),
   abandonos: Math.floor(Math.random() * 200),
-  resenhas: Math.floor(Math.random() * 1500),
+  resenhas: 0, 
 });
-
-const mockComments: Comment[] = [
-  {
-    id: 1,
-    usuario: "Ana Silva",
-    avatar: "https://ui-avatars.com/api/?name=Ana+Silva&background=random",
-    data: "15/11/2025",
-    comentario: "Um dos melhores livros que já li! A história é envolvente do início ao fim.",
-    likes: 42
-  },
-  {
-    id: 2,
-    usuario: "Carlos Mendes",
-    avatar: "https://ui-avatars.com/api/?name=Carlos+Mendes&background=random",
-    data: "10/11/2025",
-    comentario: "A entrega foi super rápida e o livro chegou em perfeito estado.",
-    likes: 28
-  }
-];
 
 const BookDetailsPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  // const context = useOutletContext<MainLayoutContextType>(); // Opcional se não usar
+  const currentUserId = getCurrentUserId(); // ID do usuário logado para verificação
   
   const [livro, setLivro] = useState<Book | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<BookStatistics | null>(null);
+
+  // Estados de Comentários
+  const [comments, setComments] = useState<CommentResponse[]>([]);
+  const [newComment, setNewComment] = useState<string>('');
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [totalComments, setTotalComments] = useState(0);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   // Estados de interação
   const [userRating, setUserRating] = useState<number>(0);
   const [readingStatus, setReadingStatus] = useState<ReadingStatusState>('');
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState<boolean>(false);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState<string>('');
-  const [currentPage, setCurrentPage] = useState<number>(1);
 
   const statusOptions: StatusOption[] = [
     { value: 'QUERO_LER', label: 'Quero Ler', color: 'bg-blue-500' },
@@ -88,25 +64,35 @@ const BookDetailsPage: React.FC = () => {
     { value: 'LIDO', label: 'Lido', color: 'bg-green-500' }
   ];
 
-  // 🚀 Carregamento Inicial (Livro + Status do Usuário)
+  // --- Funções de Carregamento ---
+
+  const loadComments = useCallback(async () => {
+    if (!id) return;
+    setLoadingComments(true);
+    try {
+      const data = await getCommentsByBook(Number(id), page);
+      setComments(data.content);
+      setTotalComments(data.totalElements);
+      setTotalPages(data.totalPages);
+    } catch (error) {
+      console.error("Erro ao carregar comentários:", error);
+    } finally {
+      setLoadingComments(false);
+    }
+  }, [id, page]);
+
+  // Carrega dados iniciais do livro
   useEffect(() => {
-    const fetchLivroDetalhado = async () => {
+    const initPage = async () => {
       if (!id) return;
       setLoading(true);
       try {
-        // 1. Busca o Livro
         const dadosLivro = await getLivroById(Number(id));
-        
         if (dadosLivro) {
           setLivro(dadosLivro);
-          setStats(generateMockStats());
-          setComments(mockComments);
-
-          // 2. ✅ Busca o Status de Leitura atual do usuário para este livro
           const statusAtual = await getReadingStatus(Number(id));
-          if (statusAtual) {
-            setReadingStatus(statusAtual);
-          }
+          if (statusAtual) setReadingStatus(statusAtual);
+          setStats(generateMockStats());
         }
       } catch (error) {
         console.error("Erro ao carregar detalhes:", error);
@@ -114,39 +100,61 @@ const BookDetailsPage: React.FC = () => {
         setLoading(false);
       }
     };
-    fetchLivroDetalhado();
+    initPage();
   }, [id]);
 
-  // ✅ Handler para atualizar o status no Backend
+  // Carrega comentários quando id ou page mudam
+  useEffect(() => {
+  
+    loadComments();
+  }, [loadComments]);
+
+  // --- Handlers ---
+
   const handleStatusChange = async (novoStatus: ReadingStatusEnum) => {
     if (!livro) return;
-
-    // Atualização Otimista (Muda na tela antes de confirmar no server)
     setReadingStatus(novoStatus);
     setShowStatusDropdown(false);
-
     try {
       await updateReadingStatus(livro.id, novoStatus);
-      console.log("Status atualizado para:", novoStatus);
     } catch (error) {
       console.error("Erro ao salvar status:", error);
-      alert("Não foi possível salvar o status. Tente novamente.");
-      // setReadingStatus(''); // Opcional: reverter em caso de erro
+      alert("Erro ao atualizar status.");
     }
   };
 
-  const handleCommentSubmit = () => {
-    if (newComment.trim()) {
-      const novoComentario: Comment = {
-        id: comments.length + 1,
-        usuario: "Você",
-        avatar: "https://ui-avatars.com/api/?name=Voce&background=random",
-        data: new Date().toLocaleDateString('pt-BR'),
-        comentario: newComment,
-        likes: 0
-      };
-      setComments([novoComentario, ...comments]);
+  const handleCommentSubmit = async () => {
+    if (!newComment.trim() || !livro || !currentUserId) return;
+
+    try {
+      await createComment({
+        idLivro: livro.id,
+        idUsuario: currentUserId,
+        conteudo: newComment
+      });
+      
       setNewComment('');
+      if (page === 0) {
+        loadComments();
+      } else {
+        setPage(0);
+      }
+    } catch (error) {
+      console.error("Erro ao enviar comentário:", error);
+      alert("Não foi possível enviar seu comentário.");
+    }
+  };
+
+  // ✅ Lógica de Exclusão: Verifica confirmação e recarrega lista
+  const handleDeleteComment = async (commentId: number) => {
+    if (!window.confirm("Tem certeza que deseja excluir este comentário?")) return;
+    
+    try {
+      await deleteComment(commentId);
+      loadComments(); // Atualiza a lista após deletar
+    } catch (error) {
+      console.error("Erro ao excluir comentário:", error);
+      alert("Erro ao excluir comentário.");
     }
   };
 
@@ -172,8 +180,6 @@ const BookDetailsPage: React.FC = () => {
 
   const ratingValue = 4.5; 
   const totalReviews = stats.resenhas;
-
-  // Lógica de Fallback para Categorias
   const categoriasParaExibir = 
     (livro.categorias && livro.categorias.length > 0) ? livro.categorias :
     (livro.categoriasLabels && livro.categoriasLabels.length > 0) ? livro.categoriasLabels : 
@@ -192,17 +198,12 @@ const BookDetailsPage: React.FC = () => {
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* --- Esquerda (Capa e Ações) --- */}
+          {/* Esquerda - Capa */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 h-fit">
               <div className="aspect-[2/3] w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center group">
                 {livro.capa ? (
-                    <img
-                    src={livro.capa}
-                    alt={livro.titulo}
-                    loading="lazy"
-                    className="w-full h-full object-cover shadow-sm group-hover:scale-105 transition-transform duration-500"
-                    />
+                    <img src={livro.capa} alt={livro.titulo} loading="lazy" className="w-full h-full object-cover shadow-sm" />
                 ) : (
                     <BookOpen className="w-20 h-20 text-gray-300" />
                 )}
@@ -212,9 +213,7 @@ const BookDetailsPage: React.FC = () => {
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <span className="text-4xl font-bold text-gray-900">{ratingValue}</span>
                 </div>
-                <div className="flex justify-center mb-1">
-                    {renderStars(Math.round(ratingValue))}
-                </div>
+                <div className="flex justify-center mb-1">{renderStars(Math.round(ratingValue))}</div>
                 <p className="text-sm text-gray-500">{totalReviews.toLocaleString('pt-BR')} avaliações</p>
               </div>
 
@@ -236,11 +235,10 @@ const BookDetailsPage: React.FC = () => {
                 </button>
                 
                 {showStatusDropdown && (
-                  <div className="absolute bottom-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">                    
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50">                    
                     {statusOptions.map((option) => (
                       <button
                         key={option.value}
-                        // ✅ Chama o handler correto
                         onClick={() => handleStatusChange(option.value)}
                         className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center text-sm text-gray-700"
                       >
@@ -253,14 +251,8 @@ const BookDetailsPage: React.FC = () => {
               </div>
 
               <div className="flex gap-3">
-                <button
-                  onClick={() => setIsFavorite(!isFavorite)}
-                  className={`flex-1 py-2.5 rounded-lg border transition-all flex items-center justify-center gap-2 font-medium text-sm ${
-                    isFavorite ? 'bg-red-50 border-red-200 text-red-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <Heart size={18} className={isFavorite ? 'fill-red-600' : ''} />
-                  Favorito
+                <button onClick={() => setIsFavorite(!isFavorite)} className={`flex-1 py-2.5 rounded-lg border transition-all flex items-center justify-center gap-2 font-medium text-sm ${isFavorite ? 'bg-red-50 border-red-200 text-red-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                  <Heart size={18} className={isFavorite ? 'fill-red-600' : ''} /> Favorito
                 </button>
                 <button className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
                   <Share2 size={18} />
@@ -269,23 +261,17 @@ const BookDetailsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* --- Direita (Conteúdo) --- */}
+          {/* Direita - Conteúdo */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Info do Livro */}
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
-              
               <div className="flex flex-wrap gap-2 mb-4">
                  {categoriasParaExibir.map((cat: string) => (
                     <span key={cat} className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
                         {CATEGORIA_LABELS[cat as keyof typeof CATEGORIA_LABELS] || cat}
                     </span>
                  ))}
-                 {categoriasParaExibir.length === 0 && (
-                    <span className="text-gray-400 text-xs italic bg-gray-100 px-2 py-1 rounded">
-                      Sem categoria
-                    </span>
-                 )}
               </div>
-
               <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2 leading-tight">{livro.titulo}</h1>
               <p className="text-xl text-gray-600 font-medium">{livro.autor}</p>
               
@@ -309,105 +295,117 @@ const BookDetailsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Estatísticas Gerais, Sinopse e Comentários... (Mantidos igual) */}
+            {/* Stats Bar */}
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 overflow-x-auto">
-              <div className="flex justify-between min-w-[600px] gap-4 text-center">
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Leram</p>
-                  <p className="text-lg font-bold text-gray-900">{stats.leram.toLocaleString()}</p>
-                </div>
-                <div className="w-px bg-gray-200"></div>
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Lendo</p>
-                  <p className="text-lg font-bold text-yellow-600">{stats.lendo.toLocaleString()}</p>
-                </div>
-                <div className="w-px bg-gray-200"></div>
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Querem</p>
-                  <p className="text-lg font-bold text-blue-600">{stats.querem.toLocaleString()}</p>
-                </div>
-                <div className="w-px bg-gray-200"></div>
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Abandonos</p>
-                  <p className="text-lg font-bold text-red-500">{stats.abandonos.toLocaleString()}</p>
-                </div>
-              </div>
+               <div className="flex justify-between min-w-[600px] gap-4 text-center">
+                  <div className="flex-1"><p className="text-xs text-gray-500 uppercase">Leram</p><p className="text-lg font-bold">{stats.leram}</p></div>
+                  <div className="flex-1"><p className="text-xs text-gray-500 uppercase">Lendo</p><p className="text-lg font-bold">{stats.lendo}</p></div>
+                  <div className="flex-1"><p className="text-xs text-gray-500 uppercase">Querem</p><p className="text-lg font-bold">{stats.querem}</p></div>
+               </div>
             </div>
 
+            {/* Sinopse */}
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Sinopse</h2>
-              <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-                {livro.sinopse || "Nenhuma sinopse disponível para este livro no momento."}
-              </p>
+              <p className="text-gray-700 leading-relaxed whitespace-pre-line">{livro.sinopse || "Sem sinopse."}</p>
             </div>
 
+            {/* ÁREA DE COMENTÁRIOS INTEGRADA */}
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <MessageSquare size={20} className="text-blue-600" />
-                Resenhas da Comunidade ({comments.length})
+                Resenhas da Comunidade ({totalComments})
               </h2>
 
-              <div className="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="O que você achou deste livro? Escreva sua resenha..."
-                  className="w-full p-4 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all"
-                  rows={3}
-                />
-                <div className="flex justify-end mt-3">
-                    <button
-                    onClick={handleCommentSubmit}
-                    disabled={!newComment.trim()}
-                    className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                    Publicar Resenha
-                    </button>
+              {/* Formulário de Novo Comentário */}
+              {currentUserId ? (
+                <div className="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="O que você achou deste livro? Escreva sua resenha..."
+                    className="w-full p-4 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                    rows={3}
+                  />
+                  <div className="flex justify-end mt-3">
+                      <button
+                      onClick={handleCommentSubmit}
+                      disabled={!newComment.trim()}
+                      className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50"
+                      >
+                      Publicar Resenha
+                      </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="mb-8 p-4 bg-blue-50 text-blue-800 rounded-lg text-center text-sm">
+                  Faça login para escrever uma resenha.
+                </div>
+              )}
 
+              {/* Lista de Comentários */}
               <div className="space-y-6">
-                {comments.slice((currentPage - 1) * 5, currentPage * 5).map((comment) => (
-                  <div key={comment.id} className="border-b border-gray-100 last:border-0 pb-6 last:pb-0">
-                    <div className="flex items-start gap-4">
-                      <img
-                        src={comment.avatar}
-                        alt={comment.usuario}
-                        className="w-10 h-10 rounded-full border border-gray-200"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <div>
-                            <p className="font-bold text-gray-900 text-sm">{comment.usuario}</p>
-                            <p className="text-xs text-gray-400">{comment.data}</p>
+                {loadingComments ? (
+                  <p className="text-center text-gray-500">Carregando comentários...</p>
+                ) : comments.length > 0 ? (
+                  comments.map((comment) => (
+                    <div key={comment.id} className="border-b border-gray-100 last:border-0 pb-6 last:pb-0">
+                      <div className="flex items-start gap-4">
+                        {/* Avatar gerado com iniciais */}
+                        <img
+                          src={`https://ui-avatars.com/api/?name=${comment.nomeUsuario || 'Anônimo'}&background=random`}
+                          alt={comment.nomeUsuario}
+                          className="w-10 h-10 rounded-full border border-gray-200"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <div>
+                              <p className="font-bold text-gray-900 text-sm">{comment.nomeUsuario || "Usuário"}</p>
+                              <p className="text-xs text-gray-400">
+                                {comment.data ? new Date(comment.data).toLocaleDateString('pt-BR') : ''}
+                              </p>
+
+                            </div>
+                            {/* ✅ LÓGICA DE EXCLUSÃO APLICADA AQUI: 
+                               Se o ID do usuário logado for igual ao ID do autor do comentário, mostra o botão. 
+                            */}
+                            {currentUserId === comment.idUsuario && (
+                              <button 
+                                onClick={() => handleDeleteComment(comment.id)}
+                                className="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-gray-100"
+                                title="Excluir comentário"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
-                          <button className="text-gray-300 hover:text-gray-600"><MoreVertical size={16} /></button>
+                          <p className="text-gray-700 text-sm leading-relaxed mt-2">{comment.conteudo}</p>
                         </div>
-                        <p className="text-gray-700 text-sm leading-relaxed mt-2">{comment.comentario}</p>
-                        <button className="mt-3 text-xs text-gray-500 hover:text-blue-600 flex items-center gap-1.5 font-medium transition-colors">
-                          <Heart size={14} />
-                          {comment.likes} Curtidas
-                        </button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-center text-gray-400 text-sm">Seja o primeiro a comentar!</p>
+                )}
               </div>
 
-              {comments.length > 5 && (
+              {/* Paginação Simples */}
+              {totalPages > 1 && (
                 <div className="mt-8 pt-6 border-t border-gray-100 flex justify-center gap-2">
                    <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => setPage(Math.max(0, page - 1))}
+                    disabled={page === 0}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
                   >
                     Anterior
                   </button>
-                  <span className="px-4 py-2 text-sm text-gray-600 flex items-center">Página {currentPage}</span>
+                  <span className="px-4 py-2 text-sm text-gray-600 flex items-center">
+                    Página {page + 1} de {totalPages}
+                  </span>
                   <button
-                    onClick={() => setCurrentPage(Math.min(Math.ceil(comments.length / 5), currentPage + 1))}
-                    disabled={currentPage === Math.ceil(comments.length / 5)}
-                    className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                    disabled={page >= totalPages - 1}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
                   >
                     Próxima
                   </button>
