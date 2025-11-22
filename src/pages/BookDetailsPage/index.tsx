@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { Star, Heart, BookOpen, MessageSquare, MoreVertical, ArrowLeft } from 'lucide-react';
+import { Star, Heart, BookOpen, MessageSquare, Share2, MoreVertical, ArrowLeft } from 'lucide-react';
 import { getLivroById } from "@/services/bookService";
-import type { MainLayoutContextType } from '@/MainLayout';
-import type { Book } from "../../types/Book";
-import { CATEGORIA_LABELS } from '../../types/Book';
-// --- Interfaces Locais (View Models) ---
-// Estendemos os dados básicos para incluir o que a UI rica precisa
+// ✅ Importamos o serviço de status que criamos
+import { updateReadingStatus, getReadingStatus, type ReadingStatusEnum } from "@/services/statusService";
+import type { MainLayoutContextType } from "@/MainLayout";
+import { type Book, CATEGORIA_LABELS } from "../../types/Book";
+
+// --- Interfaces Locais ---
 interface BookStatistics {
   leram: number;
   lendo: number;
@@ -25,16 +26,16 @@ interface Comment {
   likes: number;
 }
 
-type ReadingStatus = 'QUERO_LER' | 'LENDO' | 'LIDO' | '';
+// Estado do status pode ser o Enum ou string vazia (inicial)
+type ReadingStatusState = ReadingStatusEnum | '';
 
 interface StatusOption {
-  value: ReadingStatus;
+  value: ReadingStatusEnum;
   label: string;
   color: string;
 }
 
 // --- Mock Data Helpers ---
-// Função auxiliar para gerar estatísticas aleatórias para preencher a UI
 const generateMockStats = (): BookStatistics => ({
   leram: Math.floor(Math.random() * 50000),
   lendo: Math.floor(Math.random() * 1000),
@@ -66,25 +67,20 @@ const mockComments: Comment[] = [
 const BookDetailsPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  // const context = useOutletContext<MainLayoutContextType>(); // Opcional se não usar
   
-  // Integração com a Busca Global do Layout
-  const context = useOutletContext<MainLayoutContextType>();
-  
-  // Estados do Livro
   const [livro, setLivro] = useState<Book | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<BookStatistics | null>(null);
 
-  // Estados de Interação do Usuário
+  // Estados de interação
   const [userRating, setUserRating] = useState<number>(0);
-  const [readingStatus, setReadingStatus] = useState<ReadingStatus>('');
+  const [readingStatus, setReadingStatus] = useState<ReadingStatusState>('');
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState<boolean>(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState<string>('');
-  const [currentPage] = useState<number>(1);
-
-
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   const statusOptions: StatusOption[] = [
     { value: 'QUERO_LER', label: 'Quero Ler', color: 'bg-blue-500' },
@@ -92,33 +88,53 @@ const BookDetailsPage: React.FC = () => {
     { value: 'LIDO', label: 'Lido', color: 'bg-green-500' }
   ];
 
-
-
-  // Efeito 2: Carregar dados do livro
+  // 🚀 Carregamento Inicial (Livro + Status do Usuário)
   useEffect(() => {
     const fetchLivroDetalhado = async () => {
+      if (!id) return;
       setLoading(true);
       try {
-        // Simulação de busca por ID (num cenário real, endpoint específico)
-        const encontrado = await getLivroById(id ? parseInt(id) : 0);
+        // 1. Busca o Livro
+        const dadosLivro = await getLivroById(Number(id));
         
-        if (encontrado) {
-          setLivro(encontrado);
-          // Enriquecendo com dados mockados para a UI
+        if (dadosLivro) {
+          setLivro(dadosLivro);
           setStats(generateMockStats());
           setComments(mockComments);
+
+          // 2. ✅ Busca o Status de Leitura atual do usuário para este livro
+          const statusAtual = await getReadingStatus(Number(id));
+          if (statusAtual) {
+            setReadingStatus(statusAtual);
+          }
         }
       } catch (error) {
-        console.error("Erro ao carregar detalhes", error);
+        console.error("Erro ao carregar detalhes:", error);
       } finally {
         setLoading(false);
       }
     };
-
-    if (id) fetchLivroDetalhado();
+    fetchLivroDetalhado();
   }, [id]);
 
-  // Handlers
+  // ✅ Handler para atualizar o status no Backend
+  const handleStatusChange = async (novoStatus: ReadingStatusEnum) => {
+    if (!livro) return;
+
+    // Atualização Otimista (Muda na tela antes de confirmar no server)
+    setReadingStatus(novoStatus);
+    setShowStatusDropdown(false);
+
+    try {
+      await updateReadingStatus(livro.id, novoStatus);
+      console.log("Status atualizado para:", novoStatus);
+    } catch (error) {
+      console.error("Erro ao salvar status:", error);
+      alert("Não foi possível salvar o status. Tente novamente.");
+      // setReadingStatus(''); // Opcional: reverter em caso de erro
+    }
+  };
+
   const handleCommentSubmit = () => {
     if (newComment.trim()) {
       const novoComentario: Comment = {
@@ -142,9 +158,7 @@ const BookDetailsPage: React.FC = () => {
             key={star}
             size={interactive ? 24 : 16}
             className={`${
-              star <= rating
-                ? 'fill-yellow-400 text-yellow-400'
-                : 'text-gray-300'
+              star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
             } ${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
             onClick={() => interactive && setUserRating(star)}
           />
@@ -152,24 +166,23 @@ const BookDetailsPage: React.FC = () => {
       </div>
     );
   };
-  
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
-  if (!livro || !stats) return <div className="min-h-screen flex items-center justify-center">Livro não encontrado.</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-blue-600 animate-pulse">Carregando...</div>;
+  if (!livro || !stats) return <div className="min-h-screen flex items-center justify-center text-gray-500">Livro não encontrado.</div>;
 
-    const categoriasParaExibir = 
+  const ratingValue = 4.5; 
+  const totalReviews = stats.resenhas;
+
+  // Lógica de Fallback para Categorias
+  const categoriasParaExibir = 
     (livro.categorias && livro.categorias.length > 0) ? livro.categorias :
     (livro.categoriasLabels && livro.categoriasLabels.length > 0) ? livro.categoriasLabels : 
     [];
-  // Definindo valores padrão para campos que podem não existir no tipo Book simples
-  const ratingValue = 4.5; // Mock fixo se não vier do backend
-  const totalReviews = stats.resenhas;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-8 animate-fade-in">
       <div className="max-w-7xl mx-auto px-4">
         
-        {/* Botão Voltar */}
         <button 
           onClick={() => navigate(-1)}
           className="flex items-center text-gray-600 hover:text-blue-600 mb-6 transition-colors font-medium"
@@ -179,46 +192,39 @@ const BookDetailsPage: React.FC = () => {
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Book Cover and Actions */}
+          {/* --- Esquerda (Capa e Ações) --- */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-sm p-6   border border-gray-100">
-              <div className="w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 h-fit">
+              <div className="aspect-[2/3] w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center group">
                 {livro.capa ? (
                     <img
                     src={livro.capa}
                     alt={livro.titulo}
-                    className="w-full h-full object-cover shadow-sm"
+                    loading="lazy"
+                    className="w-full h-full object-cover shadow-sm group-hover:scale-105 transition-transform duration-500"
                     />
                 ) : (
                     <BookOpen className="w-20 h-20 text-gray-300" />
                 )}
               </div>
               
-              {/* Rating Geral */}
               <div className="text-center mb-6">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <span className="text-4xl font-bold text-gray-900">
-                    {ratingValue}
-                  </span>
+                  <span className="text-4xl font-bold text-gray-900">{ratingValue}</span>
                 </div>
                 <div className="flex justify-center mb-1">
                     {renderStars(Math.round(ratingValue))}
                 </div>
-                <p className="text-sm text-gray-500">
-                  {totalReviews.toLocaleString('pt-BR')} avaliações
-                </p>
+                <p className="text-sm text-gray-500">{totalReviews.toLocaleString('pt-BR')} avaliações</p>
               </div>
 
-              {/* User Rating */}
               <div className="border-t border-gray-100 pt-4 mb-6 text-center">
                 <p className="text-sm font-medium text-gray-700 mb-2">Sua avaliação</p>
-                <div className="flex justify-center">
-                    {renderStars(userRating, true)}
-                </div>
+                <div className="flex justify-center">{renderStars(userRating, true)}</div>
               </div>
 
-              {/* Status Dropdown */}
-              <div className="relative mb-3 z-20">
+               {/* Status Dropdown */}
+               <div className="relative mb-3 z-20">
                 <button
                   onClick={() => setShowStatusDropdown(!showStatusDropdown)}
                   className={`w-full py-3 rounded-lg font-semibold text-white transition-all shadow-sm hover:shadow flex items-center justify-center gap-2 ${
@@ -230,13 +236,12 @@ const BookDetailsPage: React.FC = () => {
                 </button>
                 
                 {showStatusDropdown && (
-                    <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50">                    {statusOptions.map((option) => (
+                  <div className="absolute bottom-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">                    
+                    {statusOptions.map((option) => (
                       <button
                         key={option.value}
-                        onClick={() => {
-                            setReadingStatus(option.value);
-                            setShowStatusDropdown(false);
-                        }}
+                        // ✅ Chama o handler correto
+                        onClick={() => handleStatusChange(option.value)}
                         className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center text-sm text-gray-700"
                       >
                         <span className={`inline-block w-2 h-2 rounded-full ${option.color} mr-3`}></span>
@@ -247,60 +252,88 @@ const BookDetailsPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Action Buttons */}
               <div className="flex gap-3">
                 <button
                   onClick={() => setIsFavorite(!isFavorite)}
                   className={`flex-1 py-2.5 rounded-lg border transition-all flex items-center justify-center gap-2 font-medium text-sm ${
-                    isFavorite
-                      ? 'bg-red-50 border-red-200 text-red-600'
-                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    isFavorite ? 'bg-red-50 border-red-200 text-red-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   <Heart size={18} className={isFavorite ? 'fill-red-600' : ''} />
                   Favorito
                 </button>
+                <button className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+                  <Share2 size={18} />
+                </button>
               </div>
-
-
             </div>
           </div>
 
-          {/* Right Column - Book Info */}
+          {/* --- Direita (Conteúdo) --- */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Title and Author */}
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+              
               <div className="flex flex-wrap gap-2 mb-4">
                  {categoriasParaExibir.map((cat: string) => (
                     <span key={cat} className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
-                        {/* Tenta traduzir, se não der (ex: já é label), exibe o próprio valor */}
                         {CATEGORIA_LABELS[cat as keyof typeof CATEGORIA_LABELS] || cat}
                     </span>
                  ))}
-                 
                  {categoriasParaExibir.length === 0 && (
                     <span className="text-gray-400 text-xs italic bg-gray-100 px-2 py-1 rounded">
                       Sem categoria
                     </span>
                  )}
               </div>
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">
-                {livro.titulo}
-              </h1>
+
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2 leading-tight">{livro.titulo}</h1>
               <p className="text-xl text-gray-600 font-medium">{livro.autor}</p>
               
-              {/* Metadata Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-8 border-t border-gray-100">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 pt-8 border-t border-gray-100">
                  <div className="text-center md:text-left">
                     <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Ano</p>
                     <p className="text-gray-800 font-medium">{livro.ano || "N/A"}</p>
                  </div>
-
-
+                 <div className="text-center md:text-left">
+                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Páginas</p>
+                    <p className="text-gray-800 font-medium">320</p>
+                 </div>
+                 <div className="text-center md:text-left">
+                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Idioma</p>
+                    <p className="text-gray-800 font-medium">Português</p>
+                 </div>
+                 <div className="text-center md:text-left">
+                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Editora</p>
+                    <p className="text-gray-800 font-medium">Rocco</p>
+                 </div>
               </div>
             </div>
 
-                      {/* Synopsis */}
+            {/* Estatísticas Gerais, Sinopse e Comentários... (Mantidos igual) */}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 overflow-x-auto">
+              <div className="flex justify-between min-w-[600px] gap-4 text-center">
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Leram</p>
+                  <p className="text-lg font-bold text-gray-900">{stats.leram.toLocaleString()}</p>
+                </div>
+                <div className="w-px bg-gray-200"></div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Lendo</p>
+                  <p className="text-lg font-bold text-yellow-600">{stats.lendo.toLocaleString()}</p>
+                </div>
+                <div className="w-px bg-gray-200"></div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Querem</p>
+                  <p className="text-lg font-bold text-blue-600">{stats.querem.toLocaleString()}</p>
+                </div>
+                <div className="w-px bg-gray-200"></div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500 mb-1 font-medium uppercase">Abandonos</p>
+                  <p className="text-lg font-bold text-red-500">{stats.abandonos.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Sinopse</h2>
               <p className="text-gray-700 leading-relaxed whitespace-pre-line">
@@ -308,14 +341,12 @@ const BookDetailsPage: React.FC = () => {
               </p>
             </div>
 
-            {/* Comments Section */}
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <MessageSquare size={20} className="text-blue-600" />
                 Resenhas da Comunidade ({comments.length})
               </h2>
 
-              {/* Comment Form */}
               <div className="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
                 <textarea
                   value={newComment}
@@ -335,7 +366,6 @@ const BookDetailsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Comments List */}
               <div className="space-y-6">
                 {comments.slice((currentPage - 1) * 5, currentPage * 5).map((comment) => (
                   <div key={comment.id} className="border-b border-gray-100 last:border-0 pb-6 last:pb-0">
@@ -351,9 +381,7 @@ const BookDetailsPage: React.FC = () => {
                             <p className="font-bold text-gray-900 text-sm">{comment.usuario}</p>
                             <p className="text-xs text-gray-400">{comment.data}</p>
                           </div>
-                          <button className="text-gray-300 hover:text-gray-600">
-                            <MoreVertical size={16} />
-                          </button>
+                          <button className="text-gray-300 hover:text-gray-600"><MoreVertical size={16} /></button>
                         </div>
                         <p className="text-gray-700 text-sm leading-relaxed mt-2">{comment.comentario}</p>
                         <button className="mt-3 text-xs text-gray-500 hover:text-blue-600 flex items-center gap-1.5 font-medium transition-colors">
@@ -366,10 +394,23 @@ const BookDetailsPage: React.FC = () => {
                 ))}
               </div>
 
-              {/* Pagination (Simple) */}
               {comments.length > 5 && (
                 <div className="mt-8 pt-6 border-t border-gray-100 flex justify-center gap-2">
-                   {/* Lógica de paginação igual ao original */}
+                   <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Anterior
+                  </button>
+                  <span className="px-4 py-2 text-sm text-gray-600 flex items-center">Página {currentPage}</span>
+                  <button
+                    onClick={() => setCurrentPage(Math.min(Math.ceil(comments.length / 5), currentPage + 1))}
+                    disabled={currentPage === Math.ceil(comments.length / 5)}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Próxima
+                  </button>
                 </div>
               )}
             </div>

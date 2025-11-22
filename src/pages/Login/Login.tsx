@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { BookOpen, Mail, Lock } from 'lucide-react';
 import { GlassForm, type FormField } from '../../components/GlassForm';
 import { Link, useNavigate } from 'react-router-dom';
-import { loginUser, setAuthToken } from "../../services/userService";
+import { loginUser, setAuthToken, setUserData } from "../../services/userService";
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -47,8 +47,10 @@ const Login: React.FC = () => {
       } as any);
 
       const token = response.data.token;
+      const id = response.data.id;
 
       setAuthToken(token);
+      setUserData({ id });
       navigate("/"); // Redireciona para a Home
       
     } catch (error: any) {
