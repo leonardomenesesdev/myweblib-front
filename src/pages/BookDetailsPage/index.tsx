@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, Heart, BookOpen, MessageSquare, Share2, ArrowLeft, Trash2 } from 'lucide-react';
+import { Star, Heart, BookOpen, MessageSquare, Share2, ArrowLeft, Trash2, MessageCircle, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { getLivroById } from "@/services/bookService";
 import { updateReadingStatus, getReadingStatus, type ReadingStatusEnum } from "@/services/statusService";
 import { getCommentsByBook, createComment, deleteComment, type CommentResponse } from "@/services/comentarioService";
@@ -8,6 +8,11 @@ import { getCurrentUserId } from "@/services/userService";
 import { type Book, CATEGORIA_LABELS } from "../../types/Book";
 
 // --- Interfaces Locais ---
+
+interface CommentResponseExtended extends CommentResponse {
+  idComentarioPai?: number | null;
+}
+
 interface BookStatistics {
   leram: number;
   lendo: number;
@@ -25,7 +30,7 @@ interface StatusOption {
   color: string;
 }
 
-// --- Mock Data Helpers ---
+// --- Mock Data ---
 const generateMockStats = (): BookStatistics => ({
   leram: Math.floor(Math.random() * 50000),
   lendo: Math.floor(Math.random() * 1000),
@@ -38,19 +43,26 @@ const generateMockStats = (): BookStatistics => ({
 const BookDetailsPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const currentUserId = getCurrentUserId(); // ID do usuário logado para verificação
+  const currentUserId = getCurrentUserId();
   
   const [livro, setLivro] = useState<Book | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<BookStatistics | null>(null);
 
   // Estados de Comentários
-  const [comments, setComments] = useState<CommentResponse[]>([]);
+  const [comments, setComments] = useState<CommentResponseExtended[]>([]);
   const [newComment, setNewComment] = useState<string>('');
   const [loadingComments, setLoadingComments] = useState(false);
   const [totalComments, setTotalComments] = useState(0);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+
+  // Respostas (Reply)
+  const [replyingTo, setReplyingTo] = useState<number | null>(null); 
+  const [replyText, setReplyText] = useState<string>('');
+  
+  // ✅ NOVO: Estado para controlar quais respostas estão visíveis (Map de ID -> booleano)
+  const [expandedReplies, setExpandedReplies] = useState<Record<number, boolean>>({});
 
   // Estados de interação
   const [userRating, setUserRating] = useState<number>(0);
@@ -81,7 +93,6 @@ const BookDetailsPage: React.FC = () => {
     }
   }, [id, page]);
 
-  // Carrega dados iniciais do livro
   useEffect(() => {
     const initPage = async () => {
       if (!id) return;
@@ -103,9 +114,7 @@ const BookDetailsPage: React.FC = () => {
     initPage();
   }, [id]);
 
-  // Carrega comentários quando id ou page mudam
   useEffect(() => {
-  
     loadComments();
   }, [loadComments]);
 
@@ -119,7 +128,6 @@ const BookDetailsPage: React.FC = () => {
       await updateReadingStatus(livro.id, novoStatus);
     } catch (error) {
       console.error("Erro ao salvar status:", error);
-      alert("Erro ao atualizar status.");
     }
   };
 
@@ -129,286 +137,291 @@ const BookDetailsPage: React.FC = () => {
     try {
       await createComment({
         idLivro: livro.id,
-        idUsuario: currentUserId,
+        idUsuario: Number(currentUserId),
         conteudo: newComment
       });
       
       setNewComment('');
-      if (page === 0) {
-        loadComments();
-      } else {
-        setPage(0);
-      }
+      loadComments();
     } catch (error) {
       console.error("Erro ao enviar comentário:", error);
       alert("Não foi possível enviar seu comentário.");
     }
   };
 
-  // ✅ Lógica de Exclusão: Verifica confirmação e recarrega lista
+  const handleReplySubmit = async (parentId: number) => {
+    if (!replyText.trim() || !livro || !currentUserId) return;
+
+    try {
+      const payload: any = {
+        idLivro: livro.id,
+        conteudo: replyText
+      };
+      if (parentId != null) payload.idComentarioPai = parentId;
+      await createComment(payload);
+      
+      setReplyText('');
+      setReplyingTo(null);
+      
+      // Opcional: Expandir automaticamente as respostas desse comentário ao responder
+      setExpandedReplies(prev => ({ ...prev, [parentId]: true }));
+      
+      loadComments(); 
+    } catch (error) {
+      console.error("Erro ao enviar resposta:", error);
+      alert("Erro ao responder.");
+    }
+  };
+
   const handleDeleteComment = async (commentId: number) => {
     if (!window.confirm("Tem certeza que deseja excluir este comentário?")) return;
-    
     try {
       await deleteComment(commentId);
-      loadComments(); // Atualiza a lista após deletar
+      loadComments();
     } catch (error) {
       console.error("Erro ao excluir comentário:", error);
       alert("Erro ao excluir comentário.");
     }
   };
 
-  const renderStars = (rating: number, interactive = false) => {
-    return (
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Star
-            key={star}
-            size={interactive ? 24 : 16}
-            className={`${
-              star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
-            } ${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
-            onClick={() => interactive && setUserRating(star)}
-          />
-        ))}
-      </div>
-    );
+  // ✅ Handler para alternar visibilidade das respostas
+  const toggleReplies = (commentId: number) => {
+    setExpandedReplies(prev => ({
+      ...prev,
+      [commentId]: !prev[commentId]
+    }));
   };
+
+  const renderStars = (rating: number, interactive = false) => (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          size={interactive ? 24 : 16}
+          className={`${
+            star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
+          } ${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
+          onClick={() => interactive && setUserRating(star)}
+        />
+      ))}
+    </div>
+  );
+
+  // Lógica de Filtragem
+  const rootComments = comments.filter(c => !c.idComentarioPai);
+  const getReplies = (parentId: number) => comments.filter(c => c.idComentarioPai === parentId);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-blue-600 animate-pulse">Carregando...</div>;
   if (!livro || !stats) return <div className="min-h-screen flex items-center justify-center text-gray-500">Livro não encontrado.</div>;
 
   const ratingValue = 4.5; 
   const totalReviews = stats.resenhas;
-  const categoriasParaExibir = 
-    (livro.categorias && livro.categorias.length > 0) ? livro.categorias :
-    (livro.categoriasLabels && livro.categoriasLabels.length > 0) ? livro.categoriasLabels : 
-    [];
+  const categoriasParaExibir = livro.categorias || livro.categoriasLabels || [];
+
+  // --- SUB-COMPONENTE DE RENDERIZAÇÃO ---
+  const renderCommentItem = (comment: CommentResponseExtended, isReply = false) => (
+    <div key={comment.id} className={`group ${isReply ? 'ml-12 mt-3 border-l-2 border-gray-100 pl-4' : 'border-b border-gray-100 last:border-0 pb-6 last:pb-0'}`}>
+      <div className="flex items-start gap-3">
+        <img
+          src={`https://ui-avatars.com/api/?name=${comment.nomeUsuario || 'Anônimo'}&background=random&size=${isReply ? 32 : 40}`}
+          alt={comment.nomeUsuario}
+          className={`${isReply ? 'w-8 h-8' : 'w-10 h-10'} rounded-full border border-gray-200`}
+        />
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <p className="font-bold text-gray-900 text-sm">{comment.nomeUsuario || "Usuário"}</p>
+              <p className="text-xs text-gray-400">
+                {comment.data ? new Date(comment.data).toLocaleDateString('pt-BR') : ''}
+              </p>
+            </div>
+            
+            <div className="flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                {currentUserId && !isReply && (
+                    <button 
+                        onClick={() => {
+                            setReplyingTo(replyingTo === comment.id ? null : comment.id);
+                            setReplyText('');
+                        }}
+                        className="text-gray-400 hover:text-blue-600 transition-colors p-1"
+                        title="Responder"
+                    >
+                        <MessageCircle size={16} />
+                    </button>
+                )}
+
+                {currentUserId && Number(currentUserId) === Number(comment.idUsuario) && (
+                    <button 
+                        onClick={() => handleDeleteComment(comment.id)}
+                        className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                        title="Excluir"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                )}
+            </div>
+          </div>
+          
+          <p className="text-gray-700 text-sm leading-relaxed mt-1">{comment.conteudo}</p>
+
+          {replyingTo === comment.id && (
+            <div className="mt-3 bg-gray-50 p-3 rounded-lg animate-in fade-in zoom-in-95 duration-200">
+                <textarea
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder={`Respondendo a ${comment.nomeUsuario}...`}
+                    className="w-full p-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-400"
+                    rows={2}
+                    autoFocus
+                />
+                <div className="flex justify-end gap-2 mt-2">
+                    <button 
+                        onClick={() => setReplyingTo(null)}
+                        className="px-3 py-1 text-xs text-gray-500 hover:bg-gray-200 rounded"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={() => handleReplySubmit(comment.id)}
+                        className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                        Enviar Resposta
+                    </button>
+                </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 animate-fade-in">
       <div className="max-w-7xl mx-auto px-4">
-        
-        <button 
-          onClick={() => navigate(-1)}
-          className="flex items-center text-gray-600 hover:text-blue-600 mb-6 transition-colors font-medium"
-        >
-          <ArrowLeft className="w-5 h-5 mr-2" />
-          Voltar para a estante
+        <button onClick={() => navigate(-1)} className="flex items-center text-gray-600 hover:text-blue-600 mb-6 transition-colors font-medium">
+          <ArrowLeft className="w-5 h-5 mr-2" /> Voltar para a estante
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Esquerda - Capa */}
+          {/* Esquerda - Capa e Ações */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 h-fit">
-              <div className="aspect-[2/3] w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center group">
-                {livro.capa ? (
-                    <img src={livro.capa} alt={livro.titulo} loading="lazy" className="w-full h-full object-cover shadow-sm" />
-                ) : (
-                    <BookOpen className="w-20 h-20 text-gray-300" />
-                )}
+               <div className="aspect-[2/3] w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center group">
+                {livro.capa ? <img src={livro.capa} alt={livro.titulo} className="w-full h-full object-cover" /> : <BookOpen className="w-20 h-20 text-gray-300" />}
               </div>
               
               <div className="text-center mb-6">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <span className="text-4xl font-bold text-gray-900">{ratingValue}</span>
-                </div>
-                <div className="flex justify-center mb-1">{renderStars(Math.round(ratingValue))}</div>
-                <p className="text-sm text-gray-500">{totalReviews.toLocaleString('pt-BR')} avaliações</p>
+                 <div className="flex justify-center mb-1">{renderStars(Math.round(ratingValue))}</div>
+                 <p className="text-sm text-gray-500">{totalReviews} avaliações</p>
               </div>
-
-              <div className="border-t border-gray-100 pt-4 mb-6 text-center">
-                <p className="text-sm font-medium text-gray-700 mb-2">Sua avaliação</p>
-                <div className="flex justify-center">{renderStars(userRating, true)}</div>
-              </div>
-
-               {/* Status Dropdown */}
-               <div className="relative mb-3 z-20">
-                <button
-                  onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-                  className={`w-full py-3 rounded-lg font-semibold text-white transition-all shadow-sm hover:shadow flex items-center justify-center gap-2 ${
-                    readingStatus ? statusOptions.find(s => s.value === readingStatus)?.color : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                >
-                  <BookOpen size={20} />
-                  {readingStatus ? statusOptions.find(s => s.value === readingStatus)?.label : 'Adicionar à Biblioteca'}
+              <div className="relative mb-3 z-20">
+                <button onClick={() => setShowStatusDropdown(!showStatusDropdown)} className={`w-full py-3 rounded-lg font-semibold text-white flex items-center justify-center gap-2 ${readingStatus ? statusOptions.find(s => s.value === readingStatus)?.color : 'bg-blue-600'}`}>
+                   <BookOpen size={20} /> {readingStatus ? statusOptions.find(s => s.value === readingStatus)?.label : 'Adicionar à Biblioteca'}
                 </button>
-                
                 {showStatusDropdown && (
-                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50">                    
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-xl border z-50">                    
                     {statusOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => handleStatusChange(option.value)}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center text-sm text-gray-700"
-                      >
-                        <span className={`inline-block w-2 h-2 rounded-full ${option.color} mr-3`}></span>
-                        {option.label}
+                      <button key={option.value} onClick={() => handleStatusChange(option.value)} className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center text-sm">
+                        <span className={`inline-block w-2 h-2 rounded-full ${option.color} mr-3`}></span> {option.label}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
-
-              <div className="flex gap-3">
-                <button onClick={() => setIsFavorite(!isFavorite)} className={`flex-1 py-2.5 rounded-lg border transition-all flex items-center justify-center gap-2 font-medium text-sm ${isFavorite ? 'bg-red-50 border-red-200 text-red-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                  <Heart size={18} className={isFavorite ? 'fill-red-600' : ''} /> Favorito
-                </button>
-                <button className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
-                  <Share2 size={18} />
-                </button>
-              </div>
             </div>
           </div>
 
-          {/* Direita - Conteúdo */}
+          {/* Direita - Detalhes e Comentários */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Info do Livro */}
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
-              <div className="flex flex-wrap gap-2 mb-4">
-                 {categoriasParaExibir.map((cat: string) => (
-                    <span key={cat} className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
-                        {CATEGORIA_LABELS[cat as keyof typeof CATEGORIA_LABELS] || cat}
-                    </span>
-                 ))}
-              </div>
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2 leading-tight">{livro.titulo}</h1>
-              <p className="text-xl text-gray-600 font-medium">{livro.autor}</p>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 pt-8 border-t border-gray-100">
-                 <div className="text-center md:text-left">
-                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Ano</p>
-                    <p className="text-gray-800 font-medium">{livro.ano || "N/A"}</p>
-                 </div>
-                 <div className="text-center md:text-left">
-                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Páginas</p>
-                    <p className="text-gray-800 font-medium">320</p>
-                 </div>
-                 <div className="text-center md:text-left">
-                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Idioma</p>
-                    <p className="text-gray-800 font-medium">Português</p>
-                 </div>
-                 <div className="text-center md:text-left">
-                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Editora</p>
-                    <p className="text-gray-800 font-medium">Rocco</p>
-                 </div>
-              </div>
+               <h1 className="text-3xl font-bold text-gray-900 mb-2">{livro.titulo}</h1>
+               <p className="text-xl text-gray-600">{livro.autor}</p>
+               <div className="mt-4"><h2 className="font-bold">Sinopse</h2><p className="text-gray-700 mt-2">{livro.sinopse}</p></div>
             </div>
 
-            {/* Stats Bar */}
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 overflow-x-auto">
-               <div className="flex justify-between min-w-[600px] gap-4 text-center">
-                  <div className="flex-1"><p className="text-xs text-gray-500 uppercase">Leram</p><p className="text-lg font-bold">{stats.leram}</p></div>
-                  <div className="flex-1"><p className="text-xs text-gray-500 uppercase">Lendo</p><p className="text-lg font-bold">{stats.lendo}</p></div>
-                  <div className="flex-1"><p className="text-xs text-gray-500 uppercase">Querem</p><p className="text-lg font-bold">{stats.querem}</p></div>
-               </div>
-            </div>
-
-            {/* Sinopse */}
-            <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Sinopse</h2>
-              <p className="text-gray-700 leading-relaxed whitespace-pre-line">{livro.sinopse || "Sem sinopse."}</p>
-            </div>
-
-            {/* ÁREA DE COMENTÁRIOS INTEGRADA */}
+            {/* ÁREA DE COMENTÁRIOS */}
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <MessageSquare size={20} className="text-blue-600" />
                 Resenhas da Comunidade ({totalComments})
               </h2>
 
-              {/* Formulário de Novo Comentário */}
               {currentUserId ? (
                 <div className="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
                   <textarea
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="O que você achou deste livro? Escreva sua resenha..."
-                    className="w-full p-4 bg-white border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                    placeholder="Escreva sua resenha..."
+                    className="w-full p-4 bg-white border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 text-sm"
                     rows={3}
                   />
                   <div className="flex justify-end mt-3">
-                      <button
-                      onClick={handleCommentSubmit}
-                      disabled={!newComment.trim()}
-                      className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50"
-                      >
-                      Publicar Resenha
+                      <button onClick={handleCommentSubmit} disabled={!newComment.trim()} className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                        Publicar Resenha
                       </button>
                   </div>
                 </div>
               ) : (
-                <div className="mb-8 p-4 bg-blue-50 text-blue-800 rounded-lg text-center text-sm">
-                  Faça login para escrever uma resenha.
-                </div>
+                <div className="mb-8 p-4 bg-blue-50 text-blue-800 rounded-lg text-center text-sm">Faça login para comentar.</div>
               )}
 
               {/* Lista de Comentários */}
               <div className="space-y-6">
                 {loadingComments ? (
-                  <p className="text-center text-gray-500">Carregando comentários...</p>
+                  <p className="text-center text-gray-500">Carregando...</p>
                 ) : comments.length > 0 ? (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="border-b border-gray-100 last:border-0 pb-6 last:pb-0">
-                      <div className="flex items-start gap-4">
-                        {/* Avatar gerado com iniciais */}
-                        <img
-                          src={`https://ui-avatars.com/api/?name=${comment.nomeUsuario || 'Anônimo'}&background=random`}
-                          alt={comment.nomeUsuario}
-                          className="w-10 h-10 rounded-full border border-gray-200"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-1">
-                            <div>
-                              <p className="font-bold text-gray-900 text-sm">{comment.nomeUsuario || "Usuário"}</p>
-                              <p className="text-xs text-gray-400">
-                                {comment.data ? new Date(comment.data).toLocaleDateString('pt-BR') : ''}
-                              </p>
+                  rootComments.map((parent) => {
+                    const replies = getReplies(parent.id);
+                    const hasReplies = replies.length > 0;
+                    const isExpanded = expandedReplies[parent.id];
 
-                            </div>
-                            {/* ✅ LÓGICA DE EXCLUSÃO APLICADA AQUI: 
-                               Se o ID do usuário logado for igual ao ID do autor do comentário, mostra o botão. 
-                            */}
-                            {currentUserId === comment.idUsuario && (
-                              <button 
-                                onClick={() => handleDeleteComment(comment.id)}
-                                className="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-gray-100"
-                                title="Excluir comentário"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+                    return (
+                        <div key={parent.id}>
+                            {/* Renderiza o Pai */}
+                            {renderCommentItem(parent)}
+                            
+                            {/* Botão de Ver Respostas */}
+                            {hasReplies && (
+                                <div className="ml-14 mt-2 mb-4">
+                                    <button 
+                                        onClick={() => toggleReplies(parent.id)}
+                                        className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 transition-colors mb-2"
+                                    >
+                                        {isExpanded ? (
+                                            <>
+                                                Esconder {replies.length > 1 ? 'respostas' : 'resposta'} 
+                                                <ChevronUp size={14} />
+                                            </>
+                                        ) : (
+                                            <>
+                                                Ver {replies.length} {replies.length > 1 ? 'respostas' : 'resposta'} 
+                                                <ChevronDown size={14} />
+                                            </>
+                                        )}
+                                    </button>
+
+                                    {/* Renderiza os Filhos (Apenas se expandido) */}
+                                    {isExpanded && (
+                                        <div className="animate-in fade-in slide-in-from-top-2">
+                                            {replies.map(child => renderCommentItem(child, true))}
+                                        </div>
+                                    )}
+                                </div>
                             )}
-                          </div>
-                          <p className="text-gray-700 text-sm leading-relaxed mt-2">{comment.conteudo}</p>
                         </div>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="text-center text-gray-400 text-sm">Seja o primeiro a comentar!</p>
                 )}
               </div>
 
-              {/* Paginação Simples */}
+              {/* Paginação */}
               {totalPages > 1 && (
                 <div className="mt-8 pt-6 border-t border-gray-100 flex justify-center gap-2">
-                   <button
-                    onClick={() => setPage(Math.max(0, page - 1))}
-                    disabled={page === 0}
-                    className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Anterior
-                  </button>
-                  <span className="px-4 py-2 text-sm text-gray-600 flex items-center">
-                    Página {page + 1} de {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
-                    disabled={page >= totalPages - 1}
-                    className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Próxima
-                  </button>
+                   <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50">Anterior</button>
+                   <span className="px-4 py-2 text-sm text-gray-600">Página {page + 1} de {totalPages}</span>
+                   <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50">Próxima</button>
                 </div>
               )}
             </div>
