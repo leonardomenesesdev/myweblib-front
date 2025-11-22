@@ -24,8 +24,8 @@ export interface BookStatistics {
   queroLer: number;
   lendo: number;
   lido: number;
-  favoritos?: number;
-  avaliacoes?: number;
+  favoritos: number;  // Backend manda 0 por enquanto, mas manda
+  avaliacoes: number; // Backend manda 0 por enquanto, mas manda
 }
 
 export interface UserProfile {
@@ -34,8 +34,8 @@ export interface UserProfile {
   email: string;
   avatar?: string;
   bio?: string;
-  dataCadastro: string;
-  estatisticas: BookStatistics;
+  dataCadastro: string; 
+  estatisticas: BookStatistics; // ✅ O objeto mágico
 }
 
 // Adicionei aqui para facilitar

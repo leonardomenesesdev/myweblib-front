@@ -28,7 +28,7 @@ export const ProfileBookList: React.FC<ProfileBookListProps> = ({ books, isFavor
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
       {books.map((book) => (
         <div key={book.id} className="group cursor-pointer"  onClick={() => onClick?.(book)}>
-          <div className="relative aspect-[2/3] mb-3 overflow-hidden rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="relative mb-3 overflow-hidden rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
             <img
               src={book.capa}
               alt={book.titulo}
