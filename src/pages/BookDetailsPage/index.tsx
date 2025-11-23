@@ -6,6 +6,7 @@ import { updateReadingStatus, getReadingStatus, type ReadingStatusEnum } from "@
 import { getCommentsByBook, createComment, deleteComment, type CommentResponse } from "@/services/comentarioService";
 import { getCurrentUserId } from "@/services/userService";
 import { type Book, CATEGORIA_LABELS } from "../../types/Book";
+import { cancelRating, rateBook } from '@/services/avaliacaoService';
 
 // --- Interfaces Locais ---
 
@@ -60,6 +61,8 @@ const BookDetailsPage: React.FC = () => {
   // Respostas (Reply)
   const [replyingTo, setReplyingTo] = useState<number | null>(null); 
   const [replyText, setReplyText] = useState<string>('');
+
+  const [isRatingLoading, setIsRatingLoading] = useState(false); // <--- NOVO: Estado de loading da avaliação
   
   // ✅ NOVO: Estado para controlar quais respostas estão visíveis (Map de ID -> booleano)
   const [expandedReplies, setExpandedReplies] = useState<Record<number, boolean>>({});
@@ -193,19 +196,74 @@ const BookDetailsPage: React.FC = () => {
   };
 
   const renderStars = (rating: number, interactive = false) => (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <Star
-          key={star}
-          size={interactive ? 24 : 16}
-          className={`${
-            star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
-          } ${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
-          onClick={() => interactive && setUserRating(star)}
-        />
-      ))}
+    <div className={`flex items-center gap-2 ${isRatingLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            size={interactive ? 28 : 16} // Aumentei um pouco o tamanho interativo para facilitar o clique
+            className={`${
+              star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
+            } ${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
+            onClick={() => interactive && handleRate(star)} // <--- Agora chama a API
+          />
+        ))}
+      </div>
+      
+      {/* Botão de Cancelar Avaliação (Apenas se interativo e tiver nota) */}
+      {interactive && rating > 0 && (
+        <button 
+            onClick={handleRemoveRating}
+            className="ml-2 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+            title="Cancelar avaliação"
+        >
+            <X size={16} />
+        </button>
+      )}
     </div>
   );
+
+  const handleRate = async (rating: number) => {
+    if (!livro || !currentUserId) {
+        alert("Você precisa estar logado para avaliar.");
+        return;
+    }
+
+    setIsRatingLoading(true);
+    try {
+        // Integração com a API: POST /avaliacao/avaliar/...
+        await rateBook(livro.id, rating, Number(currentUserId));
+        setUserRating(rating);
+        
+        // Opcional: Recarregar dados do livro para atualizar a média global visualmente
+        // const updatedBook = await getLivroById(livro.id);
+        // if(updatedBook) setLivro(updatedBook);
+
+    } catch (error) {
+        console.error("Erro ao enviar avaliação:", error);
+        alert("Não foi possível salvar sua avaliação. Tente novamente.");
+    } finally {
+        setIsRatingLoading(false);
+    }
+  };
+
+  const handleRemoveRating = async () => {
+    if (!livro || !currentUserId || userRating === 0) return;
+
+    if (!window.confirm("Deseja remover sua avaliação?")) return;
+
+    setIsRatingLoading(true);
+    try {
+        // Integração com a API: DELETE /avaliacao/avaliar/cancelar/...
+        await cancelRating(livro.id, Number(currentUserId));
+        setUserRating(0); // Reseta as estrelas do usuário
+    } catch (error) {
+        console.error("Erro ao cancelar avaliação:", error);
+        alert("Erro ao remover avaliação.");
+    } finally {
+        setIsRatingLoading(false);
+    }
+  };
 
   // Lógica de Filtragem
   const rootComments = comments.filter(c => !c.idComentarioPai);
@@ -311,9 +369,27 @@ const BookDetailsPage: React.FC = () => {
               </div>
               
               <div className="text-center mb-6">
-                 <div className="flex justify-center mb-1">{renderStars(Math.round(ratingValue))}</div>
-                 <p className="text-sm text-gray-500">{totalReviews} avaliações</p>
+                 {/* Média Geral (Não interativo) */}
+                 <div className="flex justify-center mb-1 flex-col items-center">
+                    <span className="text-2xl font-bold text-gray-800 mb-1">{ratingValue > 0 ? ratingValue.toFixed(1) : '-'}</span>
+                    {renderStars(Math.round(ratingValue), false)}
+                 </div>
+                 <p className="text-sm text-gray-500 mt-1">Média da comunidade</p>
+                 
+                 {/* Seção de Avaliação do Usuário Logado */}
+                 {currentUserId && (
+                     <div className="mt-6 pt-4 border-t border-gray-100">
+                         <p className="text-sm font-semibold text-gray-700 mb-2">Sua Avaliação</p>
+                         <div className="flex justify-center">
+                            {renderStars(userRating, true)}
+                         </div>
+                         <p className="text-xs text-gray-400 mt-2 min-h-[20px]">
+                            {userRating > 0 ? `Você avaliou com ${userRating} estrelas` : 'Toque nas estrelas para avaliar'}
+                         </p>
+                     </div>
+                 )}
               </div>
+
               <div className="relative mb-3 z-20">
                 <button onClick={() => setShowStatusDropdown(!showStatusDropdown)} className={`w-full py-3 rounded-lg font-semibold text-white flex items-center justify-center gap-2 ${readingStatus ? statusOptions.find(s => s.value === readingStatus)?.color : 'bg-blue-600'}`}>
                    <BookOpen size={20} /> {readingStatus ? statusOptions.find(s => s.value === readingStatus)?.label : 'Adicionar à Biblioteca'}
@@ -331,7 +407,7 @@ const BookDetailsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Direita - Detalhes e Comentários */}
+          {/* Direita - Detalhes e Comentários (CÓDIGO INALTERADO ABAIXO) */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
                <h1 className="text-3xl font-bold text-gray-900 mb-2">{livro.titulo}</h1>
@@ -377,10 +453,8 @@ const BookDetailsPage: React.FC = () => {
 
                     return (
                         <div key={parent.id}>
-                            {/* Renderiza o Pai */}
                             {renderCommentItem(parent)}
                             
-                            {/* Botão de Ver Respostas */}
                             {hasReplies && (
                                 <div className="ml-14 mt-2 mb-4">
                                     <button 
@@ -400,7 +474,6 @@ const BookDetailsPage: React.FC = () => {
                                         )}
                                     </button>
 
-                                    {/* Renderiza os Filhos (Apenas se expandido) */}
                                     {isExpanded && (
                                         <div className="animate-in fade-in slide-in-from-top-2">
                                             {replies.map(child => renderCommentItem(child, true))}
@@ -416,7 +489,6 @@ const BookDetailsPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Paginação */}
               {totalPages > 1 && (
                 <div className="mt-8 pt-6 border-t border-gray-100 flex justify-center gap-2">
                    <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50">Anterior</button>
