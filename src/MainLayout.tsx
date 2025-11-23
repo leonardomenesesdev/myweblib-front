@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
-import { getLivrosPorTitulo } from "@/services/bookService";
+import { getByAutorOrTitulo } from "@/services/bookService";
 import type { Book } from "@/types/Book";
 
 
@@ -54,7 +54,7 @@ export const MainLayout: React.FC = () => {
     navigate('/', {replace: true});
     setLoadingSearch(true);
     try {
-      const data = await getLivrosPorTitulo(trimmed);
+      const data = await getByAutorOrTitulo(trimmed);
       setSearchResults(data);
     } catch (error) {
       console.error("Erro na busca global:", error);
