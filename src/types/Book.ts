@@ -9,6 +9,7 @@ export interface Book {
   sinopse: string;
   categorias: EnumCategoria[];
   categoriasLabels: string[];
+  avaliacaoMedia: number;
 }
 
 export type EnumCategoria =

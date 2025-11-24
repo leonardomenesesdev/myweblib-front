@@ -6,7 +6,7 @@ import { updateReadingStatus, getReadingStatus, type ReadingStatusEnum } from "@
 import { getCommentsByBook, createComment, deleteComment, type CommentResponse } from "@/services/comentarioService";
 import { getCurrentUserId } from "@/services/userService";
 import { type Book, CATEGORIA_LABELS } from "../../types/Book";
-import { cancelRating, rateBook } from '@/services/avaliacaoService';
+import { cancelRating, rateBook, getUserRating } from '@/services/avaliacaoService';
 
 // --- Interfaces Locais ---
 
@@ -61,14 +61,11 @@ const BookDetailsPage: React.FC = () => {
   // Respostas (Reply)
   const [replyingTo, setReplyingTo] = useState<number | null>(null); 
   const [replyText, setReplyText] = useState<string>('');
-
-  const [isRatingLoading, setIsRatingLoading] = useState(false); // <--- NOVO: Estado de loading da avaliação
-  
-  // ✅ NOVO: Estado para controlar quais respostas estão visíveis (Map de ID -> booleano)
   const [expandedReplies, setExpandedReplies] = useState<Record<number, boolean>>({});
 
   // Estados de interação
   const [userRating, setUserRating] = useState<number>(0);
+  const [isRatingLoading, setIsRatingLoading] = useState(false);
   const [readingStatus, setReadingStatus] = useState<ReadingStatusState>('');
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState<boolean>(false);
@@ -96,26 +93,43 @@ const BookDetailsPage: React.FC = () => {
     }
   }, [id, page]);
 
+  // ✅ Carregamento Unificado: Livro, Status e Avaliação
   useEffect(() => {
     const initPage = async () => {
       if (!id) return;
       setLoading(true);
       try {
-        const dadosLivro = await getLivroById(Number(id));
+        const bookId = Number(id);
+        
+        // Dispara todas as requisições iniciais em paralelo para performance
+        const [dadosLivro, statusAtual, myRating] = await Promise.all([
+          getLivroById(bookId),
+          getReadingStatus(bookId),
+          currentUserId ? getUserRating(bookId) : Promise.resolve(0)
+        ]);
+
         if (dadosLivro) {
           setLivro(dadosLivro);
-          const statusAtual = await getReadingStatus(Number(id));
-          if (statusAtual) setReadingStatus(statusAtual);
           setStats(generateMockStats());
         }
+
+        if (statusAtual) {
+          setReadingStatus(statusAtual);
+        }
+
+        // Define a avaliação do usuário se existir (Resolve o bug do F5)
+        if (myRating > 0) {
+          setUserRating(myRating);
+        }
+
       } catch (error) {
-        console.error("Erro ao carregar detalhes:", error);
+        console.error("Erro ao carregar detalhes da página:", error);
       } finally {
         setLoading(false);
       }
     };
     initPage();
-  }, [id]);
+  }, [id, currentUserId]);
 
   useEffect(() => {
     loadComments();
@@ -134,16 +148,64 @@ const BookDetailsPage: React.FC = () => {
     }
   };
 
+  const handleRate = async (rating: number) => {
+    if (!livro || !currentUserId) {
+        alert("Você precisa estar logado para avaliar.");
+        return;
+    }
+
+    setIsRatingLoading(true);
+    try {
+        // 1. Envia a nota
+        await rateBook(livro.id, rating, Number(currentUserId));
+        
+        // 2. Atualiza visualmente
+        setUserRating(rating);
+        
+        // 3. Recarrega o livro para atualizar a média global na tela
+        const livroAtualizado = await getLivroById(livro.id);
+        if (livroAtualizado) {
+            setLivro(prev => prev ? { ...prev, avaliacaoMedia: livroAtualizado.avaliacaoMedia, totalAvaliacoes: livroAtualizado.avaliacaoMedia } : livroAtualizado);
+        }
+
+    } catch (error) {
+        console.error("Erro ao enviar avaliação:", error);
+        alert("Não foi possível salvar sua avaliação.");
+    } finally {
+        setIsRatingLoading(false);
+    }
+  };
+
+  const handleRemoveRating = async () => {
+    if (!livro || !currentUserId || userRating === 0) return;
+    if (!window.confirm("Deseja remover sua avaliação?")) return;
+
+    setIsRatingLoading(true);
+    try {
+        await cancelRating(livro.id, Number(currentUserId));
+        setUserRating(0);
+        
+        // Recarrega para atualizar a média
+        const livroAtualizado = await getLivroById(livro.id);
+        if (livroAtualizado) {
+            setLivro(prev => prev ? { ...prev, avaliacaoMedia: livroAtualizado.avaliacaoMedia, totalAvaliacoes: livroAtualizado.avaliacaoMedia } : livroAtualizado);
+        }
+    } catch (error) {
+        console.error("Erro ao cancelar avaliação:", error);
+        alert("Erro ao remover avaliação.");
+    } finally {
+        setIsRatingLoading(false);
+    }
+  };
+
   const handleCommentSubmit = async () => {
     if (!newComment.trim() || !livro || !currentUserId) return;
-
     try {
       await createComment({
         idLivro: livro.id,
         idUsuario: Number(currentUserId),
         conteudo: newComment
       });
-      
       setNewComment('');
       loadComments();
     } catch (error) {
@@ -154,21 +216,18 @@ const BookDetailsPage: React.FC = () => {
 
   const handleReplySubmit = async (parentId: number) => {
     if (!replyText.trim() || !livro || !currentUserId) return;
-
     try {
       const payload: any = {
         idLivro: livro.id,
-        conteudo: replyText
+        idUsuario: Number(currentUserId),
+        conteudo: replyText,
+        idComentarioPai: parentId 
       };
-      if (parentId != null) payload.idComentarioPai = parentId;
       await createComment(payload);
       
       setReplyText('');
       setReplyingTo(null);
-      
-      // Opcional: Expandir automaticamente as respostas desse comentário ao responder
       setExpandedReplies(prev => ({ ...prev, [parentId]: true }));
-      
       loadComments(); 
     } catch (error) {
       console.error("Erro ao enviar resposta:", error);
@@ -177,93 +236,45 @@ const BookDetailsPage: React.FC = () => {
   };
 
   const handleDeleteComment = async (commentId: number) => {
-    if (!window.confirm("Tem certeza que deseja excluir este comentário?")) return;
+    if (!window.confirm("Excluir comentário?")) return;
     try {
       await deleteComment(commentId);
       loadComments();
     } catch (error) {
-      console.error("Erro ao excluir comentário:", error);
-      alert("Erro ao excluir comentário.");
+      alert("Erro ao excluir.");
     }
   };
 
-  // ✅ Handler para alternar visibilidade das respostas
   const toggleReplies = (commentId: number) => {
-    setExpandedReplies(prev => ({
-      ...prev,
-      [commentId]: !prev[commentId]
-    }));
+    setExpandedReplies(prev => ({ ...prev, [commentId]: !prev[commentId] }));
   };
 
   const renderStars = (rating: number, interactive = false) => (
-    <div className={`flex items-center gap-2 ${isRatingLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+    <div className={`flex items-center gap-2 ${isRatingLoading ? 'opacity-50 cursor-wait' : ''}`}>
       <div className="flex gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
           <Star
             key={star}
-            size={interactive ? 28 : 16} // Aumentei um pouco o tamanho interativo para facilitar o clique
+            size={interactive ? 28 : 16}
             className={`${
               star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
             } ${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
-            onClick={() => interactive && handleRate(star)} // <--- Agora chama a API
+            onClick={() => interactive && !isRatingLoading && handleRate(star)}
           />
         ))}
       </div>
       
-      {/* Botão de Cancelar Avaliação (Apenas se interativo e tiver nota) */}
-      {interactive && rating > 0 && (
+      {interactive && rating > 0 && !isRatingLoading && (
         <button 
             onClick={handleRemoveRating}
             className="ml-2 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
-            title="Cancelar avaliação"
+            title="Remover avaliação"
         >
             <X size={16} />
         </button>
       )}
     </div>
   );
-
-  const handleRate = async (rating: number) => {
-    if (!livro || !currentUserId) {
-        alert("Você precisa estar logado para avaliar.");
-        return;
-    }
-
-    setIsRatingLoading(true);
-    try {
-        // Integração com a API: POST /avaliacao/avaliar/...
-        await rateBook(livro.id, rating, Number(currentUserId));
-        setUserRating(rating);
-        
-        // Opcional: Recarregar dados do livro para atualizar a média global visualmente
-        // const updatedBook = await getLivroById(livro.id);
-        // if(updatedBook) setLivro(updatedBook);
-
-    } catch (error) {
-        console.error("Erro ao enviar avaliação:", error);
-        alert("Não foi possível salvar sua avaliação. Tente novamente.");
-    } finally {
-        setIsRatingLoading(false);
-    }
-  };
-
-  const handleRemoveRating = async () => {
-    if (!livro || !currentUserId || userRating === 0) return;
-
-    if (!window.confirm("Deseja remover sua avaliação?")) return;
-
-    setIsRatingLoading(true);
-    try {
-        // Integração com a API: DELETE /avaliacao/avaliar/cancelar/...
-        await cancelRating(livro.id, Number(currentUserId));
-        setUserRating(0); // Reseta as estrelas do usuário
-    } catch (error) {
-        console.error("Erro ao cancelar avaliação:", error);
-        alert("Erro ao remover avaliação.");
-    } finally {
-        setIsRatingLoading(false);
-    }
-  };
 
   // Lógica de Filtragem
   const rootComments = comments.filter(c => !c.idComentarioPai);
@@ -272,11 +283,10 @@ const BookDetailsPage: React.FC = () => {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-blue-600 animate-pulse">Carregando...</div>;
   if (!livro || !stats) return <div className="min-h-screen flex items-center justify-center text-gray-500">Livro não encontrado.</div>;
 
-  const ratingValue = 4.5; 
-  const totalReviews = stats.resenhas;
+  const ratingValue = (livro as any).avaliacaoMedia || 0; 
+  const totalReviews = (livro as any).totalAvaliacoes || 0; // Usa o total real se disponível no DTO
   const categoriasParaExibir = livro.categorias || livro.categoriasLabels || [];
 
-  // --- SUB-COMPONENTE DE RENDERIZAÇÃO ---
   const renderCommentItem = (comment: CommentResponseExtended, isReply = false) => (
     <div key={comment.id} className={`group ${isReply ? 'ml-12 mt-3 border-l-2 border-gray-100 pl-4' : 'border-b border-gray-100 last:border-0 pb-6 last:pb-0'}`}>
       <div className="flex items-start gap-3">
@@ -361,7 +371,7 @@ const BookDetailsPage: React.FC = () => {
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Esquerda - Capa e Ações */}
+          {/* Esquerda */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 h-fit">
                <div className="aspect-[2/3] w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center group">
@@ -369,27 +379,27 @@ const BookDetailsPage: React.FC = () => {
               </div>
               
               <div className="text-center mb-6">
-                 {/* Média Geral (Não interativo) */}
-                 <div className="flex justify-center mb-1 flex-col items-center">
-                    <span className="text-2xl font-bold text-gray-800 mb-1">{ratingValue > 0 ? ratingValue.toFixed(1) : '-'}</span>
+                 <div className="flex flex-col items-center justify-center mb-1">
+                    <span className="text-4xl font-bold text-gray-900 mb-1">{ratingValue > 0 ? ratingValue.toFixed(1) : '-'}</span>
                     {renderStars(Math.round(ratingValue), false)}
                  </div>
-                 <p className="text-sm text-gray-500 mt-1">Média da comunidade</p>
+                 <p className="text-sm text-gray-500">Média da comunidade</p>
                  
                  {/* Seção de Avaliação do Usuário Logado */}
                  {currentUserId && (
-                     <div className="mt-6 pt-4 border-t border-gray-100">
+                     <div className="mt-6 pt-4 border-t border-gray-100 w-full">
                          <p className="text-sm font-semibold text-gray-700 mb-2">Sua Avaliação</p>
                          <div className="flex justify-center">
                             {renderStars(userRating, true)}
                          </div>
-                         <p className="text-xs text-gray-400 mt-2 min-h-[20px]">
+                         <p className="text-xs text-gray-400 mt-2 h-5">
                             {userRating > 0 ? `Você avaliou com ${userRating} estrelas` : 'Toque nas estrelas para avaliar'}
                          </p>
                      </div>
                  )}
               </div>
 
+              {/* Status Dropdown */}
               <div className="relative mb-3 z-20">
                 <button onClick={() => setShowStatusDropdown(!showStatusDropdown)} className={`w-full py-3 rounded-lg font-semibold text-white flex items-center justify-center gap-2 ${readingStatus ? statusOptions.find(s => s.value === readingStatus)?.color : 'bg-blue-600'}`}>
                    <BookOpen size={20} /> {readingStatus ? statusOptions.find(s => s.value === readingStatus)?.label : 'Adicionar à Biblioteca'}
@@ -407,86 +417,58 @@ const BookDetailsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Direita - Detalhes e Comentários (CÓDIGO INALTERADO ABAIXO) */}
+          {/* Direita */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
                <h1 className="text-3xl font-bold text-gray-900 mb-2">{livro.titulo}</h1>
                <p className="text-xl text-gray-600">{livro.autor}</p>
-               <div className="mt-4"><h2 className="font-bold">Sinopse</h2><p className="text-gray-700 mt-2">{livro.sinopse}</p></div>
+               <div className="flex flex-wrap gap-2 mt-4">
+                  {categoriasParaExibir.map(cat => <span key={cat} className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">{CATEGORIA_LABELS[cat] || cat}</span>)}
+               </div>
             </div>
 
-            {/* ÁREA DE COMENTÁRIOS */}
+            <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+               <h2 className="font-bold text-xl mb-4">Sinopse</h2>
+               <p className="text-gray-700 leading-relaxed">{livro.sinopse || "Sem sinopse."}</p>
+            </div>
+
+            {/* Comentários */}
             <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                <MessageSquare size={20} className="text-blue-600" />
-                Resenhas da Comunidade ({totalComments})
+                <MessageSquare size={20} className="text-blue-600" /> Resenhas ({totalComments})
               </h2>
 
               {currentUserId ? (
                 <div className="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Escreva sua resenha..."
-                    className="w-full p-4 bg-white border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    rows={3}
-                  />
+                  <textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escreva sua resenha..." className="w-full p-4 bg-white border rounded-lg text-sm" rows={3} />
                   <div className="flex justify-end mt-3">
-                      <button onClick={handleCommentSubmit} disabled={!newComment.trim()} className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                        Publicar Resenha
-                      </button>
+                      <button onClick={handleCommentSubmit} disabled={!newComment.trim()} className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">Publicar</button>
                   </div>
                 </div>
               ) : (
                 <div className="mb-8 p-4 bg-blue-50 text-blue-800 rounded-lg text-center text-sm">Faça login para comentar.</div>
               )}
 
-              {/* Lista de Comentários */}
               <div className="space-y-6">
-                {loadingComments ? (
-                  <p className="text-center text-gray-500">Carregando...</p>
-                ) : comments.length > 0 ? (
+                {loadingComments ? <p className="text-center text-gray-500">Carregando...</p> : 
                   rootComments.map((parent) => {
                     const replies = getReplies(parent.id);
-                    const hasReplies = replies.length > 0;
                     const isExpanded = expandedReplies[parent.id];
-
                     return (
                         <div key={parent.id}>
                             {renderCommentItem(parent)}
-                            
-                            {hasReplies && (
+                            {replies.length > 0 && (
                                 <div className="ml-14 mt-2 mb-4">
-                                    <button 
-                                        onClick={() => toggleReplies(parent.id)}
-                                        className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 transition-colors mb-2"
-                                    >
-                                        {isExpanded ? (
-                                            <>
-                                                Esconder {replies.length > 1 ? 'respostas' : 'resposta'} 
-                                                <ChevronUp size={14} />
-                                            </>
-                                        ) : (
-                                            <>
-                                                Ver {replies.length} {replies.length > 1 ? 'respostas' : 'resposta'} 
-                                                <ChevronDown size={14} />
-                                            </>
-                                        )}
+                                    <button onClick={() => toggleReplies(parent.id)} className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 transition-colors mb-2">
+                                        {isExpanded ? <>Esconder respostas <ChevronUp size={14} /></> : <>Ver {replies.length} respostas <ChevronDown size={14} /></>}
                                     </button>
-
-                                    {isExpanded && (
-                                        <div className="animate-in fade-in slide-in-from-top-2">
-                                            {replies.map(child => renderCommentItem(child, true))}
-                                        </div>
-                                    )}
+                                    {isExpanded && <div className="animate-in fade-in slide-in-from-top-2">{replies.map(child => renderCommentItem(child, true))}</div>}
                                 </div>
                             )}
                         </div>
                     );
                   })
-                ) : (
-                  <p className="text-center text-gray-400 text-sm">Seja o primeiro a comentar!</p>
-                )}
+                }
               </div>
 
               {totalPages > 1 && (
