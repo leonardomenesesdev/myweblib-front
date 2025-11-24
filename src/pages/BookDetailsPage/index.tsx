@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, Heart, BookOpen, MessageSquare, Share2, ArrowLeft, Trash2, MessageCircle, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Star, BookOpen, MessageSquare, ArrowLeft, Trash2, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { getLivroById } from "@/services/bookService";
 import { updateReadingStatus, getReadingStatus, type ReadingStatusEnum } from "@/services/statusService";
 import { getCommentsByBook, createComment, deleteComment, type CommentResponse } from "@/services/comentarioService";
 import { getCurrentUserId } from "@/services/userService";
-import { type Book, CATEGORIA_LABELS } from "../../types/Book";
+import { type Book } from "../../types/Book";
 
 // --- Interfaces Locais ---
 
@@ -306,7 +306,7 @@ const BookDetailsPage: React.FC = () => {
           {/* Esquerda - Capa e Ações */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 h-fit">
-               <div className="aspect-[2/3] w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center group">
+               <div className="w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center group">
                 {livro.capa ? <img src={livro.capa} alt={livro.titulo} className="w-full h-full object-cover" /> : <BookOpen className="w-20 h-20 text-gray-300" />}
               </div>
               

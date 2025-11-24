@@ -8,7 +8,6 @@ import type { UserProfile, TabType } from "@/types/User";
 import type { Book } from "@/types/Book";
 
 import { 
-  getCurrentUser, 
   getCurrentUserId, 
   getLivrosDoUsuarioPorStatus, 
   StatusLeitura ,
