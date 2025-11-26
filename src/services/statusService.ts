@@ -28,3 +28,12 @@ export const getReadingStatus = async (idLivro: number): Promise<ReadingStatusEn
     return null; 
   }
 };
+
+export const toggleFavorite = async (bookId: number): Promise<void> => {
+  await api.post(`/livro/favoritos/toggle/${bookId}`);
+};
+
+export const checkIsFavorite = async (bookId: number): Promise<boolean> => {
+  const response = await api.get<boolean>(`/livro/favoritos/status/${bookId}`);
+  return response.data;
+};

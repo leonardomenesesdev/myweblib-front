@@ -81,3 +81,8 @@ export async function getPerfilCompleto(userId: number) {
 
   return response.data;
 } 
+
+export async function getLivrosFavoritos(userId: number): Promise<Book[]> {
+  const response = await api.get<Book[]>(`/livro/favoritos/usuario/${userId}`);
+  return response.data;
+}
