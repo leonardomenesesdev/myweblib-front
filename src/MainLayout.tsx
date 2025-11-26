@@ -20,6 +20,7 @@ const debounce = (func: (query: string) => void, delay: number) => {
   };
 };
 
+
 export const MainLayout: React.FC = () => {
   const navigate = useNavigate();
   
@@ -41,6 +42,45 @@ export const MainLayout: React.FC = () => {
       setIsAuthenticated(true);
     }
   }, [navigate]);
+
+   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+   useEffect(() => {
+      const token = localStorage.getItem("token");
+      if (token) {
+          try {
+              // Decodifica o payload do JWT
+              const base64Url = token.split('.')[1];
+              const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+              const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                  return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+              }).join(''));
+  
+              const payload = JSON.parse(jsonPayload);
+              
+              // DEBUG: Veja no console o que está chegando no token
+              console.log("Payload do Token:", payload); 
+  
+              // Verifica se a role existe e se é ADMIN
+              // O backend agora envia na chave 'role', mas verificamos 'roles' por garantia
+              const userRole = payload.role || payload.roles;
+  
+              // Verifica se é "ADMIN" (do enum) ou "ROLE_ADMIN" (do Spring Security)
+              if (userRole === "ADMIN" || userRole === "ROLE_ADMIN") {
+                  setIsAdmin(true);
+              } 
+              // Caso venha como array (ex: ["ADMIN"])
+              else if (Array.isArray(userRole) && (userRole.includes("ADMIN") || userRole.includes("ROLE_ADMIN"))) {
+                  setIsAdmin(true);
+              } else {
+                  setIsAdmin(false);
+              }
+  
+          } catch (error) {
+              console.error("Erro ao processar token:", error);
+              setIsAdmin(false);
+          }
+      }
+    }, []);
 
   const handleSearch = useCallback(async (query: string) => {
     const trimmed = query.trim();
@@ -86,6 +126,8 @@ export const MainLayout: React.FC = () => {
         isAuthenticated={isAuthenticated}
         // userName="Usuário" // Opcional: Se você buscar os dados do usuário, pode passar aqui
         
+        isAdmin = {isAdmin}
+        onAdminClick={() => navigate("/admin/painel")}
         // Funções de navegação
         onHomeClick={() => navigate("/")}
         onProfileClick={() => navigate("/perfil")}
