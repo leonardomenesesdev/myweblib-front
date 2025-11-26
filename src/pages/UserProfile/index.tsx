@@ -11,25 +11,24 @@ import {
   getCurrentUser, 
   getCurrentUserId, 
   getLivrosDoUsuarioPorStatus, 
-  StatusLeitura ,
-  getPerfilCompleto
+  StatusLeitura,
+  getPerfilCompleto,
+  getLivrosFavoritos // ✅ 1. Importe a nova função
 } from "@/services/userService";
 
 const UserProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const context = useOutletContext<MainLayoutContextType>();
   
-  // Dados do Perfil
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
 
-  // Dados da Lista de Livros (Aba Atual)
   const [activeTab, setActiveTab] = useState<TabType>('lendo');
   const [bookList, setBookList] = useState<Book[]>([]);
   const [booksLoading, setBooksLoading] = useState(false);
 
-  // 1. Carrega dados do Usuário (Rodado apenas 1x ao montar)
+  // 1. Carrega dados do Usuário (Perfil + Estatísticas)
   useEffect(() => {
     const loadProfile = async () => {
       const userId = getCurrentUserId();
@@ -41,7 +40,6 @@ const UserProfilePage: React.FC = () => {
 
       try {
         setProfileLoading(true);
-        // Nota: Assumindo que seu getCurrentUser já retorna response.data conforme ajustamos antes
         const dadosUsuario = await getPerfilCompleto(userId);
         setUserProfile(dadosUsuario);
       } catch (error) {
@@ -54,32 +52,35 @@ const UserProfilePage: React.FC = () => {
     loadProfile();
   }, [navigate]);
 
-  // 2. Carrega Livros quando a ABA muda (Lógica Inteligente)
+  // 2. Carrega Livros quando a ABA muda
   useEffect(() => {
     const loadBooksForTab = async () => {
       setBooksLoading(true);
+      const userId = getCurrentUserId(); // Precisamos do ID para buscar favoritos
+
       try {
-        // Mapeamento: Tab do Front -> Enum do Back
         const statusMap: Record<string, StatusLeitura | null> = {
           'lendo': StatusLeitura.LENDO,
           'quero-ler': StatusLeitura.QUERO_LER,
           'lido': StatusLeitura.LIDO,
-          'favoritos': null // TODO: Implementar endpoint de favoritos no backend
+          'favoritos': null 
         };
 
         const statusEnum = statusMap[activeTab];
 
         if (statusEnum) {
-          // Busca real no backend
+          // Busca por Status (Lendo, Lido, Quero Ler)
           const livros = await getLivrosDoUsuarioPorStatus(statusEnum);
           setBookList(livros);
-        } else if (activeTab === 'favoritos') {
-          // Placeholder para favoritos enquanto não criamos o endpoint
-          setBookList([]); 
+        } 
+        else if (activeTab === 'favoritos' && userId) {
+          // ✅ 2. Implementação da busca de Favoritos
+          const favoritos = await getLivrosFavoritos(userId);
+          setBookList(favoritos);
         }
 
       } catch (error) {
-        console.error(`IDUSER: ${getCurrentUserId()} Erro ao carregar livros da aba ${activeTab}:`, error);
+        console.error(`Erro ao carregar livros da aba ${activeTab}:`, error);
         setBookList([]);
       } finally {
         setBooksLoading(false);
@@ -87,7 +88,7 @@ const UserProfilePage: React.FC = () => {
     };
 
     loadBooksForTab();
-  }, [activeTab]); // <- O segredo: Roda sempre que a aba muda
+  }, [activeTab]); 
 
   // Handlers
   const handleBookClick = (livro: Book) => {
@@ -95,19 +96,16 @@ const UserProfilePage: React.FC = () => {
   };
 
   const handleSave = (updatedData: UserProfile) => {
-    // Aqui você chamaria o updateUserService(updatedData)
     setUserProfile(updatedData);
     setIsEditMode(false);
   };
 
   const handleDelete = () => {
     if (window.confirm("Tem certeza que deseja excluir sua conta?")) {
-       // chamar deleteUserService...
        console.log("Excluindo...");
     }
   };
 
-  // Renderização de Loading do Perfil (Tela inteira)
   if (profileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -119,33 +117,32 @@ const UserProfilePage: React.FC = () => {
   }
 
   if (!userProfile) {
-    return (
-        // ... (seu código de erro manteve igual)
-       <div className="p-10 text-center">Erro ao carregar perfil.</div>
-    );
+    return <div className="p-10 text-center">Erro ao carregar perfil.</div>;
   }
 
-const stats = userProfile?.estatisticas;
-const tabs = [
+  const stats = userProfile?.estatisticas;
+  
+  const tabs = [
     { 
       id: 'lendo', 
       label: 'Lendo', 
-      count: stats?.lendo || 0  // ✅ Conectado ao Backend
+      count: stats?.lendo || 0 
     },
     { 
       id: 'quero-ler', 
       label: 'Quero Ler', 
-      count: stats?.queroLer || 0 // ✅ Conectado ao Backend
+      count: stats?.queroLer || 0 
     },
     { 
       id: 'lido', 
       label: 'Lidos', 
-      count: stats?.lido || 0 // ✅ Conectado ao Backend
+      count: stats?.lido || 0 
     },
     { 
       id: 'favoritos', 
       label: 'Favoritos', 
-      count: stats?.favoritos || 0 // ✅ Conectado ao Backend (mesmo que seja 0)
+      // ✅ 3. Exibe a contagem real vinda do DTO de estatísticas
+      count: stats?.favoritos || 0 
     }
   ];
 
@@ -182,7 +179,6 @@ const tabs = [
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                         }`}
                       >
-                        {/* Adiciona o contador visualmente menor e mais claro */}
                         {tab.label} <span className="ml-1 text-xs opacity-70">({tab.count})</span>
                       </button>
                   ))}
@@ -196,7 +192,7 @@ const tabs = [
                  </div>
                ) : (
                  <ProfileBookList 
-                    books={bookList} // ✅ Lista real vinda do Backend
+                    books={bookList} 
                     isFavoriteTab={activeTab === 'favoritos'} 
                     onClick={handleBookClick}
                  />
@@ -204,7 +200,9 @@ const tabs = [
                
                {!booksLoading && bookList.length === 0 && (
                  <div className="text-center text-gray-400 py-10">
-                   Nenhum livro encontrado nesta categoria.
+                   {activeTab === 'favoritos' 
+                     ? "Você ainda não favoritou nenhum livro." 
+                     : "Nenhum livro encontrado nesta categoria."}
                  </div>
                )}
             </div>

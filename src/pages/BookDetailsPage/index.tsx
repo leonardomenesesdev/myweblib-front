@@ -7,6 +7,8 @@ import { getCommentsByBook, createComment, deleteComment, type CommentResponse }
 import { getCurrentUserId } from "@/services/userService";
 import { type Book, CATEGORIA_LABELS } from "../../types/Book";
 import { cancelRating, rateBook, getUserRating } from '@/services/avaliacaoService';
+import { toggleFavorite, checkIsFavorite } from "@/services/statusService"; 
+import { AlertModal } from "@/components/AlertModal";
 
 // --- Interfaces Locais ---
 
@@ -57,7 +59,8 @@ const BookDetailsPage: React.FC = () => {
   const [totalComments, setTotalComments] = useState(0);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
   // Respostas (Reply)
   const [replyingTo, setReplyingTo] = useState<number | null>(null); 
   const [replyText, setReplyText] = useState<string>('');
@@ -93,49 +96,63 @@ const BookDetailsPage: React.FC = () => {
     }
   }, [id, page]);
 
-  // ✅ Carregamento Unificado: Livro, Status e Avaliação
   useEffect(() => {
-    const initPage = async () => {
-      if (!id) return;
-      setLoading(true);
-      try {
-        const bookId = Number(id);
-        
-        // Dispara todas as requisições iniciais em paralelo para performance
-        const [dadosLivro, statusAtual, myRating] = await Promise.all([
-          getLivroById(bookId),
-          getReadingStatus(bookId),
-          currentUserId ? getUserRating(bookId) : Promise.resolve(0)
-        ]);
+      const initPage = async () => {
+        if (!id) return;
+        setLoading(true);
+        try {
+          const bookId = Number(id);
+          
+          // Adicionamos checkIsFavorite no Promise.all
+          const [dadosLivro, statusAtual, myRating, favoritoStatus] = await Promise.all([
+            getLivroById(bookId),
+            getReadingStatus(bookId),
+            currentUserId ? getUserRating(bookId) : Promise.resolve(0),
+            currentUserId ? checkIsFavorite(bookId) : Promise.resolve(false) // <--- BUSCA FAVORITO
+          ]);
 
-        if (dadosLivro) {
-          setLivro(dadosLivro);
-          setStats(generateMockStats());
+          if (dadosLivro) {
+            setLivro(dadosLivro);
+            setStats(generateMockStats());
+          }
+          if (statusAtual) setReadingStatus(statusAtual);
+          if (myRating > 0) setUserRating(myRating);
+          
+          setIsFavorite(favoritoStatus); // <--- SETA O ESTADO
+
+        } catch (error) {
+          console.error("Erro ao carregar detalhes:", error);
+        } finally {
+          setLoading(false);
         }
-
-        if (statusAtual) {
-          setReadingStatus(statusAtual);
-        }
-
-        // Define a avaliação do usuário se existir (Resolve o bug do F5)
-        if (myRating > 0) {
-          setUserRating(myRating);
-        }
-
-      } catch (error) {
-        console.error("Erro ao carregar detalhes da página:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    initPage();
-  }, [id, currentUserId]);
+      };
+      initPage();
+    }, [id, currentUserId]);
 
   useEffect(() => {
     loadComments();
   }, [loadComments]);
 
   // --- Handlers ---
+  const handleToggleFavorite = async () => {
+    if (!currentUserId || !livro) {
+        alert("Faça login para favoritar.");
+        return;
+    }
+
+    try {
+      // Tenta alternar no backend
+      await toggleFavorite(livro.id);
+      
+      // Se der sucesso, inverte visualmente
+      setIsFavorite(!isFavorite);
+    } catch (error: any) {
+      // SE DER ERRO (ex: Status Quero Ler), capturamos a mensagem e abrimos o modal
+      const msg = error.response?.data?.message || "Não é possível favoritar este livro no momento.";
+      setModalMessage(msg);
+      setModalOpen(true);
+    }
+  };
 
   const handleStatusChange = async (novoStatus: ReadingStatusEnum) => {
     if (!livro) return;
@@ -365,19 +382,26 @@ const BookDetailsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 animate-fade-in">
+      <AlertModal 
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Ação não permitida"
+        message={modalMessage}
+      />
       <div className="max-w-7xl mx-auto px-4">
         <button onClick={() => navigate(-1)} className="flex items-center text-gray-600 hover:text-blue-600 mb-6 transition-colors font-medium">
           <ArrowLeft className="w-5 h-5 mr-2" /> Voltar para a estante
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Esquerda */}
-          <div className="lg:col-span-1">
+<div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 h-fit">
+               {/* 1. Capa */}
                <div className="aspect-[2/3] w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center group">
                 {livro.capa ? <img src={livro.capa} alt={livro.titulo} className="w-full h-full object-cover" /> : <BookOpen className="w-20 h-20 text-gray-300" />}
               </div>
               
+              {/* 2. Avaliações */}
               <div className="text-center mb-6">
                  <div className="flex flex-col items-center justify-center mb-1">
                     <span className="text-4xl font-bold text-gray-900 mb-1">{ratingValue > 0 ? ratingValue.toFixed(1) : '-'}</span>
@@ -385,7 +409,6 @@ const BookDetailsPage: React.FC = () => {
                  </div>
                  <p className="text-sm text-gray-500">Média da comunidade</p>
                  
-                 {/* Seção de Avaliação do Usuário Logado */}
                  {currentUserId && (
                      <div className="mt-6 pt-4 border-t border-gray-100 w-full">
                          <p className="text-sm font-semibold text-gray-700 mb-2">Sua Avaliação</p>
@@ -399,22 +422,41 @@ const BookDetailsPage: React.FC = () => {
                  )}
               </div>
 
-              {/* Status Dropdown */}
+              {/* 3. Status Dropdown */}
               <div className="relative mb-3 z-20">
-                <button onClick={() => setShowStatusDropdown(!showStatusDropdown)} className={`w-full py-3 rounded-lg font-semibold text-white flex items-center justify-center gap-2 ${readingStatus ? statusOptions.find(s => s.value === readingStatus)?.color : 'bg-blue-600'}`}>
+                <button onClick={() => setShowStatusDropdown(!showStatusDropdown)} className={`w-full py-3 rounded-lg font-semibold text-white flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow ${readingStatus ? statusOptions.find(s => s.value === readingStatus)?.color : 'bg-blue-600 hover:bg-blue-700'}`}>
                    <BookOpen size={20} /> {readingStatus ? statusOptions.find(s => s.value === readingStatus)?.label : 'Adicionar à Biblioteca'}
                 </button>
                 {showStatusDropdown && (
-                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-xl border z-50">                    
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50">                    
                     {statusOptions.map((option) => (
-                      <button key={option.value} onClick={() => handleStatusChange(option.value)} className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center text-sm">
+                      <button key={option.value} onClick={() => handleStatusChange(option.value)} className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center text-sm text-gray-700">
                         <span className={`inline-block w-2 h-2 rounded-full ${option.color} mr-3`}></span> {option.label}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
-            </div>
+
+              {/* 4. Botões de Ação (MOVIDOS PARA CÁ) */}
+              <div className="flex gap-3">
+                <button 
+                    onClick={handleToggleFavorite} 
+                    className={`flex-1 py-2.5 rounded-lg border transition-all flex items-center justify-center gap-2 font-medium text-sm ${
+                        isFavorite 
+                        ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' 
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                    }`}
+                >
+                    <Heart size={18} className={isFavorite ? 'fill-red-600' : ''} /> 
+                    {isFavorite ? 'Favorito' : 'Favoritar'}
+                </button>
+                <button className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors">
+                    <Share2 size={18} />
+                </button>
+              </div>
+
+            </div> {/* Fim do Card Branco */}
           </div>
 
           {/* Direita */}

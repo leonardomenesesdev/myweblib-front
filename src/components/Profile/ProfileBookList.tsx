@@ -36,23 +36,6 @@ export const ProfileBookList: React.FC<ProfileBookListProps> = ({ books, isFavor
               className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
             />
             
-            {/* Badges flutuantes */}
-            <div className="absolute top-0 right-0 p-2 w-full flex justify-between items-start opacity-0 group-hover:opacity-100 transition-opacity">
-               {isFavoriteTab && (
-                <div className="bg-red-500 text-white p-1.5 rounded-full shadow-sm">
-                  <Heart size={14} className="fill-white" />
-                </div>
-               )}
-               
-               {/* Placeholder se não for favorito para manter layout ou apenas rating */}
-               <div className="ml-auto"></div>
-
-               {/* Rating Badge (Exemplo) */}
-               <div className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm flex items-center gap-1 text-xs font-bold">
-                  <Star size={10} className="text-yellow-500 fill-yellow-500" />
-                  4.5
-               </div>
-            </div>
           </div>
           
           <div>
