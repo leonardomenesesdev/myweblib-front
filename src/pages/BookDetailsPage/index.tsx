@@ -10,7 +10,7 @@ import { cancelRating, rateBook, getUserRating } from '@/services/avaliacaoServi
 import { toggleFavorite, checkIsFavorite } from "@/services/statusService"; 
 import { AlertModal } from "@/components/AlertModal";
 
-// --- Interfaces Locais ---
+// ... Interfaces Locais (mantidas iguais) ...
 
 interface CommentResponseExtended extends CommentResponse {
   idComentarioPai?: number | null;
@@ -33,7 +33,7 @@ interface StatusOption {
   color: string;
 }
 
-// --- Mock Data ---
+// ... Mock Data (mantido igual) ...
 const generateMockStats = (): BookStatistics => ({
   leram: Math.floor(Math.random() * 50000),
   lendo: Math.floor(Math.random() * 1000),
@@ -61,17 +61,21 @@ const BookDetailsPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
+  
   // Respostas (Reply)
   const [replyingTo, setReplyingTo] = useState<number | null>(null); 
   const [replyText, setReplyText] = useState<string>('');
   const [expandedReplies, setExpandedReplies] = useState<Record<number, boolean>>({});
 
-  // Estados de interação
+  // Estados de interação e Permissões
   const [userRating, setUserRating] = useState<number>(0);
   const [isRatingLoading, setIsRatingLoading] = useState(false);
   const [readingStatus, setReadingStatus] = useState<ReadingStatusState>('');
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState<boolean>(false);
+  
+  // [NOVO] Estado para permissão de Admin
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   const statusOptions: StatusOption[] = [
     { value: 'QUERO_LER', label: 'Quero Ler', color: 'bg-blue-500' },
@@ -79,7 +83,46 @@ const BookDetailsPage: React.FC = () => {
     { value: 'LIDO', label: 'Lido', color: 'bg-green-500' }
   ];
 
-  // --- Funções de Carregamento ---
+// --- [ATUALIZADO] Efeito para verificar Role de Admin no Token ---
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+        try {
+            // Decodifica o payload do JWT
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+
+            const payload = JSON.parse(jsonPayload);
+            
+            // DEBUG: Veja no console o que está chegando no token
+            console.log("Payload do Token:", payload); 
+
+            // Verifica se a role existe e se é ADMIN
+            // O backend agora envia na chave 'role', mas verificamos 'roles' por garantia
+            const userRole = payload.role || payload.roles;
+
+            // Verifica se é "ADMIN" (do enum) ou "ROLE_ADMIN" (do Spring Security)
+            if (userRole === "ADMIN" || userRole === "ROLE_ADMIN") {
+                setIsAdmin(true);
+            } 
+            // Caso venha como array (ex: ["ADMIN"])
+            else if (Array.isArray(userRole) && (userRole.includes("ADMIN") || userRole.includes("ROLE_ADMIN"))) {
+                setIsAdmin(true);
+            } else {
+                setIsAdmin(false);
+            }
+
+        } catch (error) {
+            console.error("Erro ao processar token:", error);
+            setIsAdmin(false);
+        }
+    }
+  }, []);
+
+  // --- Funções de Carregamento (Mantidas) ---
 
   const loadComments = useCallback(async () => {
     if (!id) return;
@@ -102,13 +145,11 @@ const BookDetailsPage: React.FC = () => {
         setLoading(true);
         try {
           const bookId = Number(id);
-          
-          // Adicionamos checkIsFavorite no Promise.all
           const [dadosLivro, statusAtual, myRating, favoritoStatus] = await Promise.all([
             getLivroById(bookId),
             getReadingStatus(bookId),
             currentUserId ? getUserRating(bookId) : Promise.resolve(0),
-            currentUserId ? checkIsFavorite(bookId) : Promise.resolve(false) // <--- BUSCA FAVORITO
+            currentUserId ? checkIsFavorite(bookId) : Promise.resolve(false)
           ]);
 
           if (dadosLivro) {
@@ -118,7 +159,7 @@ const BookDetailsPage: React.FC = () => {
           if (statusAtual) setReadingStatus(statusAtual);
           if (myRating > 0) setUserRating(myRating);
           
-          setIsFavorite(favoritoStatus); // <--- SETA O ESTADO
+          setIsFavorite(favoritoStatus);
 
         } catch (error) {
           console.error("Erro ao carregar detalhes:", error);
@@ -133,21 +174,16 @@ const BookDetailsPage: React.FC = () => {
     loadComments();
   }, [loadComments]);
 
-  // --- Handlers ---
+  // --- Handlers (Mantidos) ---
   const handleToggleFavorite = async () => {
     if (!currentUserId || !livro) {
         alert("Faça login para favoritar.");
         return;
     }
-
     try {
-      // Tenta alternar no backend
       await toggleFavorite(livro.id);
-      
-      // Se der sucesso, inverte visualmente
       setIsFavorite(!isFavorite);
     } catch (error: any) {
-      // SE DER ERRO (ex: Status Quero Ler), capturamos a mensagem e abrimos o modal
       const msg = error.response?.data?.message || "Não é possível favoritar este livro no momento.";
       setModalMessage(msg);
       setModalOpen(true);
@@ -173,13 +209,9 @@ const BookDetailsPage: React.FC = () => {
 
     setIsRatingLoading(true);
     try {
-        // 1. Envia a nota
         await rateBook(livro.id, rating, Number(currentUserId));
-        
-        // 2. Atualiza visualmente
         setUserRating(rating);
         
-        // 3. Recarrega o livro para atualizar a média global na tela
         const livroAtualizado = await getLivroById(livro.id);
         if (livroAtualizado) {
             setLivro(prev => prev ? { ...prev, avaliacaoMedia: livroAtualizado.avaliacaoMedia, totalAvaliacoes: livroAtualizado.avaliacaoMedia } : livroAtualizado);
@@ -202,7 +234,6 @@ const BookDetailsPage: React.FC = () => {
         await cancelRating(livro.id, Number(currentUserId));
         setUserRating(0);
         
-        // Recarrega para atualizar a média
         const livroAtualizado = await getLivroById(livro.id);
         if (livroAtualizado) {
             setLivro(prev => prev ? { ...prev, avaliacaoMedia: livroAtualizado.avaliacaoMedia, totalAvaliacoes: livroAtualizado.avaliacaoMedia } : livroAtualizado);
@@ -266,6 +297,7 @@ const BookDetailsPage: React.FC = () => {
     setExpandedReplies(prev => ({ ...prev, [commentId]: !prev[commentId] }));
   };
 
+  // ... renderStars (mantido igual) ...
   const renderStars = (rating: number, interactive = false) => (
     <div className={`flex items-center gap-2 ${isRatingLoading ? 'opacity-50 cursor-wait' : ''}`}>
       <div className="flex gap-1">
@@ -293,7 +325,7 @@ const BookDetailsPage: React.FC = () => {
     </div>
   );
 
-  // Lógica de Filtragem
+  // Lógica de Filtragem (mantida)
   const rootComments = comments.filter(c => !c.idComentarioPai);
   const getReplies = (parentId: number) => comments.filter(c => c.idComentarioPai === parentId);
 
@@ -301,88 +333,99 @@ const BookDetailsPage: React.FC = () => {
   if (!livro || !stats) return <div className="min-h-screen flex items-center justify-center text-gray-500">Livro não encontrado.</div>;
 
   const ratingValue = (livro as any).avaliacaoMedia || 0; 
-  const totalReviews = (livro as any).totalAvaliacoes || 0; // Usa o total real se disponível no DTO
+  const totalReviews = (livro as any).totalAvaliacoes || 0; 
   const categoriasParaExibir = livro.categorias || livro.categoriasLabels || [];
 
-  const renderCommentItem = (comment: CommentResponseExtended, isReply = false) => (
-    <div key={comment.id} className={`group ${isReply ? 'ml-12 mt-3 border-l-2 border-gray-100 pl-4' : 'border-b border-gray-100 last:border-0 pb-6 last:pb-0'}`}>
-      <div className="flex items-start gap-3">
-        <img
-          src={`https://ui-avatars.com/api/?name=${comment.nomeUsuario || 'Anônimo'}&background=random&size=${isReply ? 32 : 40}`}
-          alt={comment.nomeUsuario}
-          className={`${isReply ? 'w-8 h-8' : 'w-10 h-10'} rounded-full border border-gray-200`}
-        />
-        <div className="flex-1">
-          <div className="flex items-center justify-between mb-1">
-            <div>
-              <p className="font-bold text-gray-900 text-sm">{comment.nomeUsuario || "Usuário"}</p>
-              <p className="text-xs text-gray-400">
-                {comment.data ? new Date(comment.data).toLocaleDateString('pt-BR') : ''}
-              </p>
-            </div>
-            
-            <div className="flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                {currentUserId && !isReply && (
-                    <button 
-                        onClick={() => {
-                            setReplyingTo(replyingTo === comment.id ? null : comment.id);
-                            setReplyText('');
-                        }}
-                        className="text-gray-400 hover:text-blue-600 transition-colors p-1"
-                        title="Responder"
-                    >
-                        <MessageCircle size={16} />
-                    </button>
-                )}
+  // --- [ALTERAÇÃO] Função RenderCommentItem ---
+  const renderCommentItem = (comment: CommentResponseExtended, isReply = false) => {
+    // Verifica se é o dono do comentário
+    const isOwner = currentUserId && Number(currentUserId) === Number(comment.idUsuario);
+    // Verifica se pode deletar: Dono OU Admin
+    const canDelete = isOwner || isAdmin;
 
-                {currentUserId && Number(currentUserId) === Number(comment.idUsuario) && (
-                    <button 
-                        onClick={() => handleDeleteComment(comment.id)}
-                        className="text-gray-300 hover:text-red-500 transition-colors p-1"
-                        title="Excluir"
-                    >
-                        <Trash2 size={16} />
-                    </button>
-                )}
-            </div>
-          </div>
-          
-          <p className="text-gray-700 text-sm leading-relaxed mt-1">{comment.conteudo}</p>
+    return (
+        <div key={comment.id} className={`group ${isReply ? 'ml-12 mt-3 border-l-2 border-gray-100 pl-4' : 'border-b border-gray-100 last:border-0 pb-6 last:pb-0'}`}>
+        <div className="flex items-start gap-3">
+            <img
+            src={`https://ui-avatars.com/api/?name=${comment.nomeUsuario || 'Anônimo'}&background=random&size=${isReply ? 32 : 40}`}
+            alt={comment.nomeUsuario}
+            className={`${isReply ? 'w-8 h-8' : 'w-10 h-10'} rounded-full border border-gray-200`}
+            />
+            <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+                <div>
+                <p className="font-bold text-gray-900 text-sm">{comment.nomeUsuario || "Usuário"}</p>
+                <p className="text-xs text-gray-400">
+                    {comment.data ? new Date(comment.data).toLocaleDateString('pt-BR') : ''}
+                </p>
+                </div>
+                
+                <div className="flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    {currentUserId && !isReply && (
+                        <button 
+                            onClick={() => {
+                                setReplyingTo(replyingTo === comment.id ? null : comment.id);
+                                setReplyText('');
+                            }}
+                            className="text-gray-400 hover:text-blue-600 transition-colors p-1"
+                            title="Responder"
+                        >
+                            <MessageCircle size={16} />
+                        </button>
+                    )}
 
-          {replyingTo === comment.id && (
-            <div className="mt-3 bg-gray-50 p-3 rounded-lg animate-in fade-in zoom-in-95 duration-200">
-                <textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder={`Respondendo a ${comment.nomeUsuario}...`}
-                    className="w-full p-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-400"
-                    rows={2}
-                    autoFocus
-                />
-                <div className="flex justify-end gap-2 mt-2">
-                    <button 
-                        onClick={() => setReplyingTo(null)}
-                        className="px-3 py-1 text-xs text-gray-500 hover:bg-gray-200 rounded"
-                    >
-                        Cancelar
-                    </button>
-                    <button 
-                        onClick={() => handleReplySubmit(comment.id)}
-                        className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                    >
-                        Enviar Resposta
-                    </button>
+                    {/* [NOVO] Botão de exclusão condicional para Admin ou Dono */}
+                    {canDelete && (
+                        <button 
+                            onClick={() => handleDeleteComment(comment.id)}
+                            className={`transition-colors p-1 ${isAdmin && !isOwner ? 'text-red-300 hover:text-red-600' : 'text-gray-300 hover:text-red-500'}`}
+                            title={isAdmin && !isOwner ? "Excluir como Admin" : "Excluir"}
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    )}
                 </div>
             </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+            
+            <p className="text-gray-700 text-sm leading-relaxed mt-1">{comment.conteudo}</p>
 
+            {replyingTo === comment.id && (
+                <div className="mt-3 bg-gray-50 p-3 rounded-lg animate-in fade-in zoom-in-95 duration-200">
+                    <textarea
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder={`Respondendo a ${comment.nomeUsuario}...`}
+                        className="w-full p-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-400"
+                        rows={2}
+                        autoFocus
+                    />
+                    <div className="flex justify-end gap-2 mt-2">
+                        <button 
+                            onClick={() => setReplyingTo(null)}
+                            className="px-3 py-1 text-xs text-gray-500 hover:bg-gray-200 rounded"
+                        >
+                            Cancelar
+                        </button>
+                        <button 
+                            onClick={() => handleReplySubmit(comment.id)}
+                            className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                            Enviar Resposta
+                        </button>
+                    </div>
+                </div>
+            )}
+            </div>
+        </div>
+        </div>
+    );
+  };
+
+  // ... JSX de retorno (mantido igual) ...
   return (
     <div className="min-h-screen bg-gray-50 py-8 animate-fade-in">
-      <AlertModal 
+        {/* ... Restante do JSX inalterado, apenas renderCommentItem foi modificado acima ... */}
+        <AlertModal 
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title="Ação não permitida"
@@ -394,14 +437,13 @@ const BookDetailsPage: React.FC = () => {
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-<div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 h-fit">
-               {/* 1. Capa */}
+            <div className="lg:col-span-1">
+                {/* ... Componentes da esquerda (Capa, Status) mantidos ... */}
+                <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 h-fit">
                <div className="aspect-[2/3] w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center group">
                 {livro.capa ? <img src={livro.capa} alt={livro.titulo} className="w-full h-full object-cover" /> : <BookOpen className="w-20 h-20 text-gray-300" />}
               </div>
               
-              {/* 2. Avaliações */}
               <div className="text-center mb-6">
                  <div className="flex flex-col items-center justify-center mb-1">
                     <span className="text-4xl font-bold text-gray-900 mb-1">{ratingValue > 0 ? ratingValue.toFixed(1) : '-'}</span>
@@ -422,7 +464,6 @@ const BookDetailsPage: React.FC = () => {
                  )}
               </div>
 
-              {/* 3. Status Dropdown */}
               <div className="relative mb-3 z-20">
                 <button onClick={() => setShowStatusDropdown(!showStatusDropdown)} className={`w-full py-3 rounded-lg font-semibold text-white flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow ${readingStatus ? statusOptions.find(s => s.value === readingStatus)?.color : 'bg-blue-600 hover:bg-blue-700'}`}>
                    <BookOpen size={20} /> {readingStatus ? statusOptions.find(s => s.value === readingStatus)?.label : 'Adicionar à Biblioteca'}
@@ -438,7 +479,6 @@ const BookDetailsPage: React.FC = () => {
                 )}
               </div>
 
-              {/* 4. Botões de Ação (MOVIDOS PARA CÁ) */}
               <div className="flex gap-3">
                 <button 
                     onClick={handleToggleFavorite} 
@@ -456,72 +496,74 @@ const BookDetailsPage: React.FC = () => {
                 </button>
               </div>
 
-            </div> {/* Fim do Card Branco */}
-          </div>
-
-          {/* Direita */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
-               <h1 className="text-3xl font-bold text-gray-900 mb-2">{livro.titulo}</h1>
-               <p className="text-xl text-gray-600">{livro.autor}</p>
-               <div className="flex flex-wrap gap-2 mt-4">
-                  {categoriasParaExibir.map(cat => <span key={cat} className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">{CATEGORIA_LABELS[cat] || cat}</span>)}
-               </div>
+            </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
-               <h2 className="font-bold text-xl mb-4">Sinopse</h2>
-               <p className="text-gray-700 leading-relaxed">{livro.sinopse || "Sem sinopse."}</p>
-            </div>
-
-            {/* Comentários */}
-            <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                <MessageSquare size={20} className="text-blue-600" /> Resenhas ({totalComments})
-              </h2>
-
-              {currentUserId ? (
-                <div className="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escreva sua resenha..." className="w-full p-4 bg-white border rounded-lg text-sm" rows={3} />
-                  <div className="flex justify-end mt-3">
-                      <button onClick={handleCommentSubmit} disabled={!newComment.trim()} className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">Publicar</button>
-                  </div>
+            <div className="lg:col-span-2 space-y-6">
+                {/* ... Sinopse e Info mantidos ... */}
+                <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">{livro.titulo}</h1>
+                    <p className="text-xl text-gray-600">{livro.autor}</p>
+                    <div className="flex flex-wrap gap-2 mt-4">
+                        {categoriasParaExibir.map(cat => <span key={cat} className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">{CATEGORIA_LABELS[cat] || cat}</span>)}
+                    </div>
                 </div>
-              ) : (
-                <div className="mb-8 p-4 bg-blue-50 text-blue-800 rounded-lg text-center text-sm">Faça login para comentar.</div>
-              )}
 
-              <div className="space-y-6">
-                {loadingComments ? <p className="text-center text-gray-500">Carregando...</p> : 
-                  rootComments.map((parent) => {
-                    const replies = getReplies(parent.id);
-                    const isExpanded = expandedReplies[parent.id];
-                    return (
-                        <div key={parent.id}>
-                            {renderCommentItem(parent)}
-                            {replies.length > 0 && (
-                                <div className="ml-14 mt-2 mb-4">
-                                    <button onClick={() => toggleReplies(parent.id)} className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 transition-colors mb-2">
-                                        {isExpanded ? <>Esconder respostas <ChevronUp size={14} /></> : <>Ver {replies.length} respostas <ChevronDown size={14} /></>}
-                                    </button>
-                                    {isExpanded && <div className="animate-in fade-in slide-in-from-top-2">{replies.map(child => renderCommentItem(child, true))}</div>}
-                                </div>
-                            )}
+                <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+                    <h2 className="font-bold text-xl mb-4">Sinopse</h2>
+                    <p className="text-gray-700 leading-relaxed">{livro.sinopse || "Sem sinopse."}</p>
+                </div>
+
+                {/* Comentários */}
+                <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+                    <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                        <MessageSquare size={20} className="text-blue-600" /> Resenhas ({totalComments})
+                    </h2>
+
+                    {/* Caixa de Texto */}
+                    {currentUserId ? (
+                        <div className="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escreva sua resenha..." className="w-full p-4 bg-white border rounded-lg text-sm" rows={3} />
+                            <div className="flex justify-end mt-3">
+                                <button onClick={handleCommentSubmit} disabled={!newComment.trim()} className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">Publicar</button>
+                            </div>
                         </div>
-                    );
-                  })
-                }
-              </div>
+                    ) : (
+                        <div className="mb-8 p-4 bg-blue-50 text-blue-800 rounded-lg text-center text-sm">Faça login para comentar.</div>
+                    )}
 
-              {totalPages > 1 && (
-                <div className="mt-8 pt-6 border-t border-gray-100 flex justify-center gap-2">
-                   <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50">Anterior</button>
-                   <span className="px-4 py-2 text-sm text-gray-600">Página {page + 1} de {totalPages}</span>
-                   <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50">Próxima</button>
+                    {/* Lista Renderizada com renderCommentItem novo */}
+                    <div className="space-y-6">
+                        {loadingComments ? <p className="text-center text-gray-500">Carregando...</p> : 
+                        rootComments.map((parent) => {
+                            const replies = getReplies(parent.id);
+                            const isExpanded = expandedReplies[parent.id];
+                            return (
+                                <div key={parent.id}>
+                                    {renderCommentItem(parent)}
+                                    {replies.length > 0 && (
+                                        <div className="ml-14 mt-2 mb-4">
+                                            <button onClick={() => toggleReplies(parent.id)} className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1 transition-colors mb-2">
+                                                {isExpanded ? <>Esconder respostas <ChevronUp size={14} /></> : <>Ver {replies.length} respostas <ChevronDown size={14} /></>}
+                                            </button>
+                                            {isExpanded && <div className="animate-in fade-in slide-in-from-top-2">{replies.map(child => renderCommentItem(child, true))}</div>}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
+                        }
+                    </div>
+
+                    {totalPages > 1 && (
+                        <div className="mt-8 pt-6 border-t border-gray-100 flex justify-center gap-2">
+                            <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50">Anterior</button>
+                            <span className="px-4 py-2 text-sm text-gray-600">Página {page + 1} de {totalPages}</span>
+                            <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50">Próxima</button>
+                        </div>
+                    )}
                 </div>
-              )}
             </div>
-          </div>
         </div>
       </div>
     </div>
