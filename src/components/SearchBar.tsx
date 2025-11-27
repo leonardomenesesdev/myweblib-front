@@ -11,7 +11,7 @@ export interface SearchBarProps {
 
 export const SearchBar: React.FC<SearchBarProps> = ({
   onSearch,
-  placeholder = "Buscar livros...",
+  placeholder = "Buscar livros ou usuários...",
   className = "",
   delay = 500 // Padrão de 500ms é excelente para UX
 }) => {
