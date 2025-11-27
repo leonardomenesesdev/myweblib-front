@@ -8,9 +8,8 @@ import { getCurrentUserId } from "@/services/userService";
 import { type Book, CATEGORIA_LABELS } from "../../types/Book";
 import { cancelRating, rateBook, getUserRating } from '@/services/avaliacaoService';
 import { toggleFavorite, checkIsFavorite } from "@/services/statusService"; 
-import { AlertModal } from "@/components/AlertModal";
-
-// ... Interfaces Locais (mantidas iguais) ...
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { AlertModal2 } from '@/components/AlertModal2';
 
 interface CommentResponseExtended extends CommentResponse {
   idComentarioPai?: number | null;
@@ -33,7 +32,6 @@ interface StatusOption {
   color: string;
 }
 
-// ... Mock Data (mantido igual) ...
 const generateMockStats = (): BookStatistics => ({
   leram: Math.floor(Math.random() * 50000),
   lendo: Math.floor(Math.random() * 1000),
@@ -59,8 +57,6 @@ const BookDetailsPage: React.FC = () => {
   const [totalComments, setTotalComments] = useState(0);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalMessage, setModalMessage] = useState('');
   
   // Respostas (Reply)
   const [replyingTo, setReplyingTo] = useState<number | null>(null); 
@@ -73,9 +69,16 @@ const BookDetailsPage: React.FC = () => {
   const [readingStatus, setReadingStatus] = useState<ReadingStatusState>('');
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState<boolean>(false);
-  
-  // [NOVO] Estado para permissão de Admin
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+
+  // Estados dos Modais
+  const [alertModal, setAlertModal] = useState({ open: false, title: '', message: '' });
+  const [confirmModal, setConfirmModal] = useState({ 
+    open: false, 
+    title: '', 
+    message: '', 
+    onConfirm: () => {} 
+  });
 
   const statusOptions: StatusOption[] = [
     { value: 'QUERO_LER', label: 'Quero Ler', color: 'bg-blue-500' },
@@ -83,12 +86,19 @@ const BookDetailsPage: React.FC = () => {
     { value: 'LIDO', label: 'Lido', color: 'bg-green-500' }
   ];
 
-// --- [ATUALIZADO] Efeito para verificar Role de Admin no Token ---
+  // Funções auxiliares para modais
+  const showAlert = (title: string, message: string) => {
+    setAlertModal({ open: true, title, message });
+  };
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmModal({ open: true, title, message, onConfirm });
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
         try {
-            // Decodifica o payload do JWT
             const base64Url = token.split('.')[1];
             const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
             const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
@@ -96,20 +106,12 @@ const BookDetailsPage: React.FC = () => {
             }).join(''));
 
             const payload = JSON.parse(jsonPayload);
-            
-            // DEBUG: Veja no console o que está chegando no token
-            console.log("Payload do Token:", payload); 
 
-            // Verifica se a role existe e se é ADMIN
-            // O backend agora envia na chave 'role', mas verificamos 'roles' por garantia
             const userRole = payload.role || payload.roles;
 
-            // Verifica se é "ADMIN" (do enum) ou "ROLE_ADMIN" (do Spring Security)
             if (userRole === "ADMIN" || userRole === "ROLE_ADMIN") {
                 setIsAdmin(true);
-            } 
-            // Caso venha como array (ex: ["ADMIN"])
-            else if (Array.isArray(userRole) && (userRole.includes("ADMIN") || userRole.includes("ROLE_ADMIN"))) {
+            } else if (Array.isArray(userRole) && (userRole.includes("ADMIN") || userRole.includes("ROLE_ADMIN"))) {
                 setIsAdmin(true);
             } else {
                 setIsAdmin(false);
@@ -121,8 +123,6 @@ const BookDetailsPage: React.FC = () => {
         }
     }
   }, []);
-
-  // --- Funções de Carregamento (Mantidas) ---
 
   const loadComments = useCallback(async () => {
     if (!id) return;
@@ -174,10 +174,9 @@ const BookDetailsPage: React.FC = () => {
     loadComments();
   }, [loadComments]);
 
-  // --- Handlers (Mantidos) ---
   const handleToggleFavorite = async () => {
     if (!currentUserId || !livro) {
-        alert("Faça login para favoritar.");
+        showAlert("Atenção", "Faça login para favoritar livros.");
         return;
     }
     try {
@@ -185,8 +184,7 @@ const BookDetailsPage: React.FC = () => {
       setIsFavorite(!isFavorite);
     } catch (error: any) {
       const msg = error.response?.data?.message || "Não é possível favoritar este livro no momento.";
-      setModalMessage(msg);
-      setModalOpen(true);
+      showAlert("Erro", msg);
     }
   };
 
@@ -198,12 +196,13 @@ const BookDetailsPage: React.FC = () => {
       await updateReadingStatus(livro.id, novoStatus);
     } catch (error) {
       console.error("Erro ao salvar status:", error);
+      showAlert("Erro", "Não foi possível atualizar o status de leitura.");
     }
   };
 
   const handleRate = async (rating: number) => {
     if (!livro || !currentUserId) {
-        alert("Você precisa estar logado para avaliar.");
+        showAlert("Login Necessário", "Você precisa estar logado para avaliar livros.");
         return;
     }
 
@@ -214,12 +213,12 @@ const BookDetailsPage: React.FC = () => {
         
         const livroAtualizado = await getLivroById(livro.id);
         if (livroAtualizado) {
-            setLivro(prev => prev ? { ...prev, avaliacaoMedia: livroAtualizado.avaliacaoMedia, totalAvaliacoes: livroAtualizado.avaliacaoMedia } : livroAtualizado);
+            setLivro(prev => prev ? { ...prev, avaliacaoMedia: livroAtualizado.avaliacaoMedia } : livroAtualizado);
         }
 
     } catch (error) {
         console.error("Erro ao enviar avaliação:", error);
-        alert("Não foi possível salvar sua avaliação.");
+        showAlert("Erro", "Não foi possível salvar sua avaliação.");
     } finally {
         setIsRatingLoading(false);
     }
@@ -227,23 +226,29 @@ const BookDetailsPage: React.FC = () => {
 
   const handleRemoveRating = async () => {
     if (!livro || !currentUserId || userRating === 0) return;
-    if (!window.confirm("Deseja remover sua avaliação?")) return;
 
-    setIsRatingLoading(true);
-    try {
-        await cancelRating(livro.id, Number(currentUserId));
-        setUserRating(0);
-        
-        const livroAtualizado = await getLivroById(livro.id);
-        if (livroAtualizado) {
-            setLivro(prev => prev ? { ...prev, avaliacaoMedia: livroAtualizado.avaliacaoMedia, totalAvaliacoes: livroAtualizado.avaliacaoMedia } : livroAtualizado);
+    showConfirm(
+      "Remover Avaliação",
+      "Tem certeza que deseja remover sua avaliação deste livro?",
+      async () => {
+        setIsRatingLoading(true);
+        try {
+            await cancelRating(livro.id, Number(currentUserId));
+            setUserRating(0);
+            
+            const livroAtualizado = await getLivroById(livro.id);
+            if (livroAtualizado) {
+                setLivro(prev => prev ? { ...prev, avaliacaoMedia: livroAtualizado.avaliacaoMedia } : livroAtualizado);
+            }
+            showAlert("Sucesso", "Avaliação removida com sucesso!");
+        } catch (error) {
+            console.error("Erro ao cancelar avaliação:", error);
+            showAlert("Erro", "Não foi possível remover sua avaliação.");
+        } finally {
+            setIsRatingLoading(false);
         }
-    } catch (error) {
-        console.error("Erro ao cancelar avaliação:", error);
-        alert("Erro ao remover avaliação.");
-    } finally {
-        setIsRatingLoading(false);
-    }
+      }
+    );
   };
 
   const handleCommentSubmit = async () => {
@@ -256,9 +261,10 @@ const BookDetailsPage: React.FC = () => {
       });
       setNewComment('');
       loadComments();
+      showAlert("Sucesso", "Resenha publicada com sucesso!");
     } catch (error) {
       console.error("Erro ao enviar comentário:", error);
-      alert("Não foi possível enviar seu comentário.");
+      showAlert("Erro", "Não foi possível enviar sua resenha.");
     }
   };
 
@@ -276,28 +282,35 @@ const BookDetailsPage: React.FC = () => {
       setReplyText('');
       setReplyingTo(null);
       setExpandedReplies(prev => ({ ...prev, [parentId]: true }));
-      loadComments(); 
+      loadComments();
+      showAlert("Sucesso", "Resposta enviada com sucesso!");
     } catch (error) {
       console.error("Erro ao enviar resposta:", error);
-      alert("Erro ao responder.");
+      showAlert("Erro", "Não foi possível enviar sua resposta.");
     }
   };
 
   const handleDeleteComment = async (commentId: number) => {
-    if (!window.confirm("Excluir comentário?")) return;
-    try {
-      await deleteComment(commentId);
-      loadComments();
-    } catch (error) {
-      alert("Erro ao excluir.");
-    }
+    showConfirm(
+      "Excluir Resenha",
+      "Tem certeza que deseja excluir esta resenha? Esta ação não pode ser desfeita.",
+      async () => {
+        try {
+          await deleteComment(commentId);
+          loadComments();
+          showAlert("Sucesso", "Resenha excluída com sucesso!");
+        } catch (error) {
+          console.error("Erro ao excluir:", error);
+          showAlert("Erro", "Não foi possível excluir a resenha.");
+        }
+      }
+    );
   };
 
   const toggleReplies = (commentId: number) => {
     setExpandedReplies(prev => ({ ...prev, [commentId]: !prev[commentId] }));
   };
 
-  // ... renderStars (mantido igual) ...
   const renderStars = (rating: number, interactive = false) => (
     <div className={`flex items-center gap-2 ${isRatingLoading ? 'opacity-50 cursor-wait' : ''}`}>
       <div className="flex gap-1">
@@ -325,7 +338,6 @@ const BookDetailsPage: React.FC = () => {
     </div>
   );
 
-  // Lógica de Filtragem (mantida)
   const rootComments = comments.filter(c => !c.idComentarioPai);
   const getReplies = (parentId: number) => comments.filter(c => c.idComentarioPai === parentId);
 
@@ -333,14 +345,10 @@ const BookDetailsPage: React.FC = () => {
   if (!livro || !stats) return <div className="min-h-screen flex items-center justify-center text-gray-500">Livro não encontrado.</div>;
 
   const ratingValue = (livro as any).avaliacaoMedia || 0; 
-  const totalReviews = (livro as any).totalAvaliacoes || 0; 
   const categoriasParaExibir = livro.categorias || livro.categoriasLabels || [];
 
-  // --- [ALTERAÇÃO] Função RenderCommentItem ---
   const renderCommentItem = (comment: CommentResponseExtended, isReply = false) => {
-    // Verifica se é o dono do comentário
     const isOwner = currentUserId && Number(currentUserId) === Number(comment.idUsuario);
-    // Verifica se pode deletar: Dono OU Admin
     const canDelete = isOwner || isAdmin;
 
     return (
@@ -374,7 +382,6 @@ const BookDetailsPage: React.FC = () => {
                         </button>
                     )}
 
-                    {/* [NOVO] Botão de exclusão condicional para Admin ou Dono */}
                     {canDelete && (
                         <button 
                             onClick={() => handleDeleteComment(comment.id)}
@@ -421,16 +428,8 @@ const BookDetailsPage: React.FC = () => {
     );
   };
 
-  // ... JSX de retorno (mantido igual) ...
   return (
     <div className="min-h-screen bg-gray-50 py-8 animate-fade-in">
-        {/* ... Restante do JSX inalterado, apenas renderCommentItem foi modificado acima ... */}
-        <AlertModal 
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="Ação não permitida"
-        message={modalMessage}
-      />
       <div className="max-w-7xl mx-auto px-4">
         <button onClick={() => navigate(-1)} className="flex items-center text-gray-600 hover:text-blue-600 mb-6 transition-colors font-medium">
           <ArrowLeft className="w-5 h-5 mr-2" /> Voltar para a estante
@@ -438,7 +437,6 @@ const BookDetailsPage: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-1">
-                {/* ... Componentes da esquerda (Capa, Status) mantidos ... */}
                 <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 h-fit">
                <div className="aspect-[2/3] w-full relative mb-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center group">
                 {livro.capa ? <img src={livro.capa} alt={livro.titulo} className="w-full h-full object-cover" /> : <BookOpen className="w-20 h-20 text-gray-300" />}
@@ -500,12 +498,11 @@ const BookDetailsPage: React.FC = () => {
             </div>
 
             <div className="lg:col-span-2 space-y-6">
-                {/* ... Sinopse e Info mantidos ... */}
                 <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">{livro.titulo}</h1>
                     <p className="text-xl text-gray-600">{livro.autor}</p>
                     <div className="flex flex-wrap gap-2 mt-4">
-                        {categoriasParaExibir.map(cat => <span key={cat} className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">{CATEGORIA_LABELS[cat] || cat}</span>)}
+                        {categoriasParaExibir.map((cat: string) => <span key={cat} className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">{CATEGORIA_LABELS[cat as keyof typeof CATEGORIA_LABELS] || cat}</span>)}
                     </div>
                 </div>
 
@@ -514,25 +511,22 @@ const BookDetailsPage: React.FC = () => {
                     <p className="text-gray-700 leading-relaxed">{livro.sinopse || "Sem sinopse."}</p>
                 </div>
 
-                {/* Comentários */}
                 <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
                     <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                         <MessageSquare size={20} className="text-blue-600" /> Resenhas ({totalComments})
                     </h2>
 
-                    {/* Caixa de Texto */}
                     {currentUserId ? (
                         <div className="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
                             <textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escreva sua resenha..." className="w-full p-4 bg-white border rounded-lg text-sm" rows={3} />
                             <div className="flex justify-end mt-3">
-                                <button onClick={handleCommentSubmit} disabled={!newComment.trim()} className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">Publicar</button>
+                                <button onClick={handleCommentSubmit} disabled={!newComment.trim()} className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">Publicar</button>
                             </div>
                         </div>
                     ) : (
                         <div className="mb-8 p-4 bg-blue-50 text-blue-800 rounded-lg text-center text-sm">Faça login para comentar.</div>
                     )}
 
-                    {/* Lista Renderizada com renderCommentItem novo */}
                     <div className="space-y-6">
                         {loadingComments ? <p className="text-center text-gray-500">Carregando...</p> : 
                         rootComments.map((parent) => {
@@ -557,15 +551,37 @@ const BookDetailsPage: React.FC = () => {
 
                     {totalPages > 1 && (
                         <div className="mt-8 pt-6 border-t border-gray-100 flex justify-center gap-2">
-                            <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50">Anterior</button>
+                            <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50 transition-colors">Anterior</button>
                             <span className="px-4 py-2 text-sm text-gray-600">Página {page + 1} de {totalPages}</span>
-                            <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50">Próxima</button>
+                            <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50 transition-colors">Próxima</button>
                         </div>
                     )}
                 </div>
             </div>
         </div>
       </div>
+
+      {/* Modais */}
+      <AlertModal2 
+        isOpen={alertModal.open}
+        onClose={() => setAlertModal({ ...alertModal, open: false })}
+        title={alertModal.title}
+        message={alertModal.message}
+      />
+
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ ...confirmModal, open: false })}
+        onConfirm={() => {
+          confirmModal.onConfirm();
+          setConfirmModal({ ...confirmModal, open: false });
+        }}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText="Sim, continuar"
+        cancelText="Cancelar"
+        isDestructive={true}
+      />
     </div>
   );
 };
