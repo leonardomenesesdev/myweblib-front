@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, BookOpen, Plus, Edit2, Trash2, Search, X, Check, Loader2, ChevronLeft, ChevronRight
+  Users, BookOpen, Plus, Edit2, Trash2, Search, X, Check, Loader2, ChevronLeft, ChevronRight, ArrowUpDown, Filter
 } from 'lucide-react';
 import { 
   getLivros, getLivroById, criarLivro, atualizarLivro, deletarLivro 
@@ -12,6 +12,7 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 
 // --- Interfaces do Componente ---
 type AdminTab = 'livros' | 'usuarios';
+type SortOption = 'id-asc' | 'id-desc' | 'titulo-asc' | 'titulo-desc' | 'nome-asc' | 'nome-desc';
 
 const ITEMS_PER_PAGE = 10; 
 
@@ -19,6 +20,10 @@ const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('livros');
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('id-asc');
+  
+  // Filtro de categoria
+  const [filterCategoria, setFilterCategoria] = useState<string>('');
   
   // Estado de Paginação
   const [currentPage, setCurrentPage] = useState(1);
@@ -66,12 +71,15 @@ const AdminPanel: React.FC = () => {
   useEffect(() => {
     fetchData();
     setCurrentPage(1); 
-    setSearchTerm(''); 
+    setSearchTerm('');
+    setFilterCategoria('');
+    // Reseta a ordenação para ID crescente ao trocar de aba
+    setSortBy('id-asc');
   }, [activeTab]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, filterCategoria]);
 
   // --- HANDLERS LIVROS ---
   const handleSaveBook = async (e: React.FormEvent) => {
@@ -166,14 +174,62 @@ const AdminPanel: React.FC = () => {
   const showAlert = (title: string, msg: string) => setAlertInfo({ open: true, title, msg });
   
   // 1. Filtragem
-  const filteredBooks = livros.filter(b => b.titulo.toLowerCase().includes(searchTerm.toLowerCase()) || b.autor.toLowerCase().includes(searchTerm.toLowerCase()));
-  const filteredUsers = usuarios.filter(u => u.nome?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredBooks = livros.filter(b => {
+    const matchesSearch = b.titulo.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         b.autor.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategoria = !filterCategoria || b.categorias?.includes(filterCategoria as EnumCategoria);
+    
+    return matchesSearch && matchesCategoria;
+  });
+  
+  const filteredUsers = usuarios.filter(u => 
+    u.nome?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  // 2. Lógica de Paginação
-  const currentData = activeTab === 'livros' ? filteredBooks : filteredUsers;
-  const totalPages = Math.ceil(currentData.length / ITEMS_PER_PAGE);
+  // 2. Ordenação
+  const sortData = <T extends Book | UserAdminDTO>(data: T[]): T[] => {
+    const sorted = [...data];
+    
+    if (activeTab === 'livros') {
+      const books = sorted as Book[];
+      switch (sortBy) {
+        case 'id-asc':
+          return books.sort((a, b) => a.id - b.id) as T[];
+        case 'id-desc':
+          return books.sort((a, b) => b.id - a.id) as T[];
+        case 'titulo-asc':
+          return books.sort((a, b) => a.titulo.localeCompare(b.titulo)) as T[];
+        case 'titulo-desc':
+          return books.sort((a, b) => b.titulo.localeCompare(a.titulo)) as T[];
+        default:
+          return sorted;
+      }
+    } else {
+      const users = sorted as UserAdminDTO[];
+      switch (sortBy) {
+        case 'id-asc':
+          return users.sort((a, b) => a.id - b.id) as T[];
+        case 'id-desc':
+          return users.sort((a, b) => b.id - a.id) as T[];
+        case 'nome-asc':
+          return users.sort((a, b) => (a.nome || '').localeCompare(b.nome || '')) as T[];
+        case 'nome-desc':
+          return users.sort((a, b) => (b.nome || '').localeCompare(a.nome || '')) as T[];
+        default:
+          return sorted;
+      }
+    }
+  };
+
+  // 3. Lógica de Paginação
+  const sortedData = activeTab === 'livros' 
+    ? sortData(filteredBooks) 
+    : sortData(filteredUsers);
+  
+  const totalPages = Math.ceil(sortedData.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedData = currentData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedData = sortedData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const handlePreviousPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
   const handleNextPage = () => setCurrentPage(prev => Math.min(prev + 1, totalPages));
@@ -201,24 +257,107 @@ const AdminPanel: React.FC = () => {
         </div>
 
         {/* BARRA DE FERRAMENTAS */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex justify-between items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-            <input 
-              type="text" 
-              placeholder={`Pesquisar ${activeTab}...`} 
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
+          {/* Linha 1: Pesquisa e Ordenação */}
+          <div className="flex justify-between items-center gap-4 mb-4">
+            <div className="flex items-center gap-3 flex-1">
+              {/* Campo de Pesquisa */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <input 
+                  type="text" 
+                  placeholder={`Pesquisar ${activeTab}...`} 
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+
+              {/* Filtro de Ordenação */}
+              <div className="relative">
+                <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  className="pl-10 pr-8 py-2 border border-gray-200 rounded-lg bg-white text-sm text-gray-700 font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer hover:bg-gray-50 transition-all min-w-[180px]"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                    backgroundPosition: 'right 0.5rem center',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundSize: '1.5em 1.5em',
+                    paddingRight: '2.5rem',
+                    appearance: 'none'
+                  }}
+                >
+                  {activeTab === 'livros' ? (
+                    <>
+                      <option value="id-asc">ID Crescente</option>
+                      <option value="id-desc">ID Decrescente</option>
+                      <option value="titulo-asc">Título (A-Z)</option>
+                      <option value="titulo-desc">Título (Z-A)</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="id-asc">ID Crescente</option>
+                      <option value="id-desc">ID Decrescente</option>
+                      <option value="nome-asc">Nome (A-Z)</option>
+                      <option value="nome-desc">Nome (Z-A)</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            </div>
+
+            {activeTab === 'livros' && (
+              <button 
+                onClick={openNewBook}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors whitespace-nowrap shadow-sm hover:shadow-md"
+              >
+                <Plus size={20} /> Novo Livro
+              </button>
+            )}
           </div>
+
+          {/* Linha 2: Filtros Adicionais (apenas para Livros) */}
           {activeTab === 'livros' && (
-            <button 
-              onClick={openNewBook}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors"
-            >
-              <Plus size={20} /> Novo Livro
-            </button>
+            <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
+              <div className="flex items-center gap-2 text-sm text-gray-600 font-medium">
+                <Filter size={16} className="text-gray-400" />
+                Filtro:
+              </div>
+              
+              {/* Filtro por Categoria */}
+              <div className="relative flex-1 max-w-xs">
+                <select
+                  value={filterCategoria}
+                  onChange={(e) => setFilterCategoria(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer hover:bg-gray-50 transition-all"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                    backgroundPosition: 'right 0.5rem center',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundSize: '1.5em 1.5em',
+                    paddingRight: '2.5rem',
+                    appearance: 'none'
+                  }}
+                >
+                  <option value="">Todas as categorias</option>
+                  {Object.entries(CATEGORIA_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Botão Limpar Filtros */}
+              {filterCategoria && (
+                <button
+                  onClick={() => setFilterCategoria('')}
+                  className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-1 font-medium"
+                >
+                  <X size={14} /> Limpar
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -409,7 +548,7 @@ const AdminPanel: React.FC = () => {
                     <label className="text-sm font-medium text-gray-700">Sinopse</label>
                     <textarea 
                         rows={5} 
-                        value={bookForm.sinopse || ''} // Garante que nunca seja undefined
+                        value={bookForm.sinopse || ''} 
                         onChange={e => setBookForm({...bookForm, sinopse: e.target.value})} 
                         className="w-full p-2 border rounded-lg" 
                     />
