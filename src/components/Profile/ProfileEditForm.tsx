@@ -42,16 +42,6 @@ return(
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Bio</label>
-          <textarea
-            value={formData.bio}
-            onChange={(e) => handleChange('bio', e.target.value)}
-            rows={4}
-            className="w-full px-4 py-2.5 border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all outline-none"
-          />
-        </div>
-
         <div className="flex gap-3 pt-4">
           <button
             onClick={() => onSave(formData)}
