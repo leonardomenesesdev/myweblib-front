@@ -17,9 +17,7 @@ export const ProfileBookList: React.FC<ProfileBookListProps> = ({ books, isFavor
         <p className="text-gray-500 text-lg font-medium">
           Nenhum livro nesta categoria ainda
         </p>
-        <p className="text-gray-400 text-sm mt-2">
-          Comece adicionando livros à sua estante!
-        </p>
+
       </div>
     );
   }

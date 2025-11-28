@@ -12,6 +12,7 @@ import UserProfilePage from './pages/UserProfile/index.tsx';
 
 // CORREÇÃO 1: Remova o '/index.tsx' do final. O sistema de build resolve isso automaticamente.
 import AdminPanel from './pages/AdminPanel'; 
+import OtherUserProfile from './pages/OtherUserProfile/index.tsx';
 
 const router = createBrowserRouter([
   // GRUPO 1: Rotas Públicas (Login/Cadastro sem Header)
@@ -46,6 +47,10 @@ const router = createBrowserRouter([
       {
         path: "admin/painel",
         element: <AdminPanel />
+      },
+      {
+        path: "perfil/:id",
+        element: <OtherUserProfile />
       }
     ]
   }

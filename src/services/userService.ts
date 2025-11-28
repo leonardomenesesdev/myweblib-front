@@ -60,15 +60,20 @@ export function logoutUser() {
   delete api.defaults.headers.common['Authorization'];
 }
 
-export async function getLivrosDoUsuarioPorStatus(status: StatusLeitura): Promise<Book[]> {
+export async function getLivrosDoUsuarioPorStatus(status: StatusLeitura, userId?: number): Promise<Book[]> {
   const token = localStorage.getItem("token");
-  const response = await api.get<Book[]>(`/status/usuario/${status}`, {
-  headers: {
-    Authorization: `Bearer ${token}`,
-  }
-})
-return response.data
+  
+  // Se tem userId, usa a nova rota. Se não, usa a antiga.
+  const url = userId 
+    ? `/status/usuario/${userId}/${status}` // Nova Rota do Backend
+    : `/status/usuario/${status}`;          // Rota Antiga (Meus livros)
+
+  const response = await api.get<Book[]>(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return response.data;
 }
+
 
 export async function getPerfilCompleto(userId: number) {
   const token = localStorage.getItem("token");
