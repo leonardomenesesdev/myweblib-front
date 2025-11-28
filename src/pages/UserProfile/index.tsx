@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
+import { AlertTriangle, Trash2, X } from 'lucide-react'; // Ícones para o modal
 import { ProfileHeader } from "@/components/Profile/ProfileHeader";
 import { ProfileEditForm } from "@/components/Profile/ProfileEditForm";
 import { ProfileBookList } from "@/components/Profile/ProfileBookList";
@@ -8,12 +9,14 @@ import type { UserProfile, TabType } from "@/types/User";
 import type { Book } from "@/types/Book";
 
 import { 
-  getCurrentUser, 
   getCurrentUserId, 
   getLivrosDoUsuarioPorStatus, 
   StatusLeitura,
   getPerfilCompleto,
-  getLivrosFavoritos // ✅ 1. Importe a nova função
+  getLivrosFavoritos,
+  updateUserProfile,
+  deleteUserAccount, // ✅ Importe a função de deletar
+  logoutUser         // ✅ Importe o logout
 } from "@/services/userService";
 
 const UserProfilePage: React.FC = () => {
@@ -22,13 +25,19 @@ const UserProfilePage: React.FC = () => {
   
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  
+  const [isSaving, setIsSaving] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+
+  // ✅ Novos estados para o modal de exclusão
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabType>('lendo');
   const [bookList, setBookList] = useState<Book[]>([]);
   const [booksLoading, setBooksLoading] = useState(false);
 
-  // 1. Carrega dados do Usuário (Perfil + Estatísticas)
+  // 1. Carrega dados do Usuário
   useEffect(() => {
     const loadProfile = async () => {
       const userId = getCurrentUserId();
@@ -52,11 +61,11 @@ const UserProfilePage: React.FC = () => {
     loadProfile();
   }, [navigate]);
 
-  // 2. Carrega Livros quando a ABA muda
+  // 2. Carrega Livros
   useEffect(() => {
     const loadBooksForTab = async () => {
       setBooksLoading(true);
-      const userId = getCurrentUserId(); // Precisamos do ID para buscar favoritos
+      const userId = getCurrentUserId();
 
       try {
         const statusMap: Record<string, StatusLeitura | null> = {
@@ -69,12 +78,10 @@ const UserProfilePage: React.FC = () => {
         const statusEnum = statusMap[activeTab];
 
         if (statusEnum) {
-          // Busca por Status (Lendo, Lido, Quero Ler)
           const livros = await getLivrosDoUsuarioPorStatus(statusEnum);
           setBookList(livros);
         } 
         else if (activeTab === 'favoritos' && userId) {
-          // ✅ 2. Implementação da busca de Favoritos
           const favoritos = await getLivrosFavoritos(userId);
           setBookList(favoritos);
         }
@@ -95,14 +102,59 @@ const UserProfilePage: React.FC = () => {
     navigate(`/livro/${livro.id}`);
   };
 
-  const handleSave = (updatedData: UserProfile) => {
-    setUserProfile(updatedData);
-    setIsEditMode(false);
+const handleSave = async (updatedData: any) => {
+    if (!userProfile) return;
+
+    setIsSaving(true);
+    try {
+        
+        await updateUserProfile(userProfile.id, updatedData);
+        
+        const novoPerfil: UserProfile = {
+            ...userProfile,           // Mantém ID, DataCadastro e Estatísticas intocados
+            nome: updatedData.nome,   // Atualiza Nome
+            email: updatedData.email, 
+        };
+        
+        // Atualiza a tela instantaneamente
+        setUserProfile(novoPerfil);
+        
+        setIsEditMode(false);
+        alert("Perfil atualizado com sucesso!");
+        
+    } catch (error) {
+        console.error("Erro ao atualizar perfil:", error);
+        alert("Não foi possível salvar as alterações.");
+    } finally {
+        setIsSaving(false);
+    }
   };
 
-  const handleDelete = () => {
-    if (window.confirm("Tem certeza que deseja excluir sua conta?")) {
-       console.log("Excluindo...");
+  // ✅ Abre o modal ao clicar em excluir no Header
+  const handleDeleteClick = () => {
+    setIsDeleteModalOpen(true);
+  };
+
+  // ✅ Lógica Real de Exclusão
+  const confirmDelete = async () => {
+    if (!userProfile) return;
+
+    setIsDeleting(true);
+    try {
+      // 1. Chama o backend para apagar o usuário
+      await deleteUserAccount(userProfile.id);
+      
+      // 2. Limpa sessão local
+      logoutUser();
+      
+      // 3. Redireciona para login
+      navigate('/login');
+      
+    } catch (error) {
+      console.error("Erro ao excluir conta:", error);
+      alert("Ocorreu um erro ao tentar excluir a conta.");
+      setIsDeleting(false);
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -123,31 +175,14 @@ const UserProfilePage: React.FC = () => {
   const stats = userProfile?.estatisticas;
   
   const tabs = [
-    { 
-      id: 'lendo', 
-      label: 'Lendo', 
-      count: stats?.lendo || 0 
-    },
-    { 
-      id: 'quero-ler', 
-      label: 'Quero Ler', 
-      count: stats?.queroLer || 0 
-    },
-    { 
-      id: 'lido', 
-      label: 'Lidos', 
-      count: stats?.lido || 0 
-    },
-    { 
-      id: 'favoritos', 
-      label: 'Favoritos', 
-      // ✅ 3. Exibe a contagem real vinda do DTO de estatísticas
-      count: stats?.favoritos || 0 
-    }
+    { id: 'lendo', label: 'Lendo', count: stats?.lendo || 0 },
+    { id: 'quero-ler', label: 'Quero Ler', count: stats?.queroLer || 0 },
+    { id: 'lido', label: 'Lidos', count: stats?.lido || 0 },
+    { id: 'favoritos', label: 'Favoritos', count: stats?.favoritos || 0 }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 animate-fade-in">
+    <div className="min-h-screen bg-gray-50 py-8 animate-fade-in relative">
       <div className="max-w-7xl mx-auto px-4">
         
         {isEditMode ? (
@@ -161,7 +196,7 @@ const UserProfilePage: React.FC = () => {
             profile={userProfile} 
             isUserProfile={true} 
             onEdit={() => setIsEditMode(true)}
-            onDelete={handleDelete}
+            onDelete={handleDeleteClick} // ✅ Passa a função que abre o modal
           />
         )}
 
@@ -209,6 +244,59 @@ const UserProfilePage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* ✅ MODAL DE EXCLUSÃO */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100">
+            
+            <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-3 text-red-600">
+                    <div className="bg-red-100 p-2 rounded-full">
+                        <AlertTriangle size={24} />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900">Excluir Conta</h3>
+                </div>
+                <button 
+                    onClick={() => setIsDeleteModalOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                    <X size={24} />
+                </button>
+            </div>
+
+            <div className="mb-6">
+                <p className="text-gray-600 leading-relaxed">
+                    Tem certeza que deseja excluir sua conta permanentemente? 
+                    <br/><br/>
+                    Essa ação <strong>não pode ser desfeita</strong> e todos os seus dados, histórico de leitura e avaliações serão perdidos. Ao confirmar, você será desconectado.
+                </p>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+                <button 
+                    onClick={() => setIsDeleteModalOpen(false)}
+                    disabled={isDeleting}
+                    className="px-5 py-2.5 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                >
+                    Cancelar
+                </button>
+                <button 
+                    onClick={confirmDelete}
+                    disabled={isDeleting}
+                    className="px-5 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-200 flex items-center gap-2"
+                >
+                    {isDeleting ? 'Excluindo...' : (
+                        <>
+                            <Trash2 size={18} /> Confirmar Exclusão
+                        </>
+                    )}
+                </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
