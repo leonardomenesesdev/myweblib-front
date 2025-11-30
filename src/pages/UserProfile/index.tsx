@@ -107,7 +107,7 @@ const handleSave = async (updatedData: any) => {
 
     setIsSaving(true);
     try {
-        
+        // 1. Envia para o backend (mas ignoramos o retorno confuso dele por enquanto)
         await updateUserProfile(userProfile.id, updatedData);
         
         const novoPerfil: UserProfile = {

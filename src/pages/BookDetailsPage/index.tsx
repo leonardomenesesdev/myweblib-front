@@ -385,7 +385,7 @@ const BookDetailsPage: React.FC = () => {
                     {canDelete && (
                         <button 
                             onClick={() => handleDeleteComment(comment.id)}
-                            className={`transition-colors p-1 ${isAdmin && !isOwner ? 'text-red-300 hover:text-red-600' : 'text-gray-300 hover:text-red-500'}`}
+                            className={`transition-colors p-1 ${isAdmin && !isOwner ? 'text-gray-400 hover:text-red-600' : 'text-gray-400 hover:text-red-500'}`}
                             title={isAdmin && !isOwner ? "Excluir como Admin" : "Excluir"}
                         >
                             <Trash2 size={16} />
