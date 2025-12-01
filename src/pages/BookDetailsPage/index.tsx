@@ -489,9 +489,6 @@ const BookDetailsPage: React.FC = () => {
                     <Heart size={18} className={isFavorite ? 'fill-red-600' : ''} /> 
                     {isFavorite ? 'Favorito' : 'Favoritar'}
                 </button>
-                <button className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors">
-                    <Share2 size={18} />
-                </button>
               </div>
 
             </div>

@@ -26,9 +26,6 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                 </h1>
                 <p className="text-gray-500 mb-3 font-medium">{profile.email}</p>
                 
-                <div className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50 border border-gray-200 text-xs text-gray-500">
-                    Membro desde {profile.dataCadastro || "01/01/2023"}
-                </div>
             </div>
 
             {/* 2. Botões de Ação (Centro/Meio) - Só aparecem se for o próprio usuário */}
