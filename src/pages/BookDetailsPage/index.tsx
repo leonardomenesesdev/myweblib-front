@@ -558,7 +558,7 @@ const BookDetailsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Modais */}
+      {/*modais*/}
       <AlertModal2 
         isOpen={alertModal.open}
         onClose={() => setAlertModal({ ...alertModal, open: false })}

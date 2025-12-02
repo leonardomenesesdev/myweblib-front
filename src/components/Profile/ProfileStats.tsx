@@ -5,7 +5,6 @@ interface ProfileStatsProps {
   stats?: BookStatistics | null; 
 }
 
-// ✅ CORREÇÃO: Estado inicial zerado, não mais números aleatórios
 const EMPTY_STATS: BookStatistics = {
   queroLer: 0,
   lendo: 0,

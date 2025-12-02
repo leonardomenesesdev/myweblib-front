@@ -19,7 +19,6 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
     return (
         <div className="bg-white shadow-sm rounded-xl p-8 flex flex-col md:flex-row items-center md:items-start justify-between gap-6 border border-gray-100">
             
-            {/* 1. Informações do Usuário (Esquerda) */}
             <div className="text-center md:text-left">
                 <h1 className="text-3xl font-bold text-gray-900 mb-1">
                     {profile.nome || "Usuário"}
@@ -28,7 +27,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                 
             </div>
 
-            {/* 2. Botões de Ação (Centro/Meio) - Só aparecem se for o próprio usuário */}
+            {/*botoes de editar/excluir só aparecem pro proprio usuario*/}
             {isUserProfile && (
                 <div className="flex gap-3">
                     <button
@@ -48,9 +47,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                     </button>
                 </div>
             )}
-
-            {/* 3. Estatísticas (Direita) */}
-            {/* Ajustei a margem para não colar nos botões em telas menores */}
+            {/*stats*/}
             <div className="w-full md:w-auto border-t md:border-t-0 md:border-l border-gray-100 pt-6 md:pt-0 md:pl-8">
                  <ProfileStats stats={profile.estatisticas} />
             </div>

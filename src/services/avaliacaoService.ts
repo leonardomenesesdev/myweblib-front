@@ -19,14 +19,9 @@ export const cancelRating = async (livroId: number, usuarioId: number): Promise<
 };
 export const getUserRating = async (bookId: number): Promise<number> => {
   try {
-    // Endpoint sugerido: GET /avaliacao/livro/{id}/usuario
-    // O backend deve retornar um objeto com a nota, ou a própria nota (int)
     const response = await api.get(`/avaliacao/me/${bookId}`);
-    
-    // Se retornar objeto (ex: { nota: 5 }), use response.data.nota
-    // Se retornar direto o número, use response.data
     return typeof response.data === 'object' ? response.data.nota : response.data;
   } catch (error) {
-    return 0; // Se der 404 (não avaliou ainda), retorna 0
+    return 0; 
   }
 };

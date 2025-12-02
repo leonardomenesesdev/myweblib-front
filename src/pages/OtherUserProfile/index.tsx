@@ -16,33 +16,28 @@ import {
 
 const OtherUserProfile: React.FC = () => {
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>(); // 2. Pegue o ID da URL
+  const { id } = useParams<{ id: string }>(); 
   
-  // Converta o ID da URL para número
   const profileId = id ? Number(id) : null;
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
-  
-  // Como é perfil de OUTRO usuário, geralmente não editamos aqui, 
-  // mas mantive a lógica caso você queira permitir admin editar.
+
   const [isEditMode, setIsEditMode] = useState(false); 
 
   const [activeTab, setActiveTab] = useState<TabType>('lendo');
   const [bookList, setBookList] = useState<Book[]>([]);
   const [booksLoading, setBooksLoading] = useState(false);
 
-  // 1. Carrega dados do Usuário Baseado na URL
   useEffect(() => {
     const loadProfile = async () => {
       if (!profileId) {
-        navigate('/'); // Se não tiver ID na URL, volta pra home
+        navigate('/'); 
         return;
       }
 
       try {
         setProfileLoading(true);
-        // Usa o profileId da URL, não o do localStorage
         const dadosUsuario = await getPerfilCompleto(profileId);
         setUserProfile(dadosUsuario);
       } catch (error) {
@@ -53,12 +48,11 @@ const OtherUserProfile: React.FC = () => {
     };
 
     loadProfile();
-  }, [profileId, navigate]); // Dependência mudou para profileId
+  }, [profileId, navigate]); 
 
-  // 2. Carrega Livros quando a ABA muda
   useEffect(() => {
     const loadBooksForTab = async () => {
-      if (!profileId) return; // Segurança
+      if (!profileId) return; 
 
       setBooksLoading(true);
 
@@ -73,7 +67,6 @@ const OtherUserProfile: React.FC = () => {
         const statusEnum = statusMap[activeTab];
 
         if (statusEnum) {
-          // Passamos o profileId para a função de serviço buscar os livros DESTE usuário
           const livros = await getLivrosDoUsuarioPorStatus(statusEnum, profileId);
           setBookList(livros);
         } 
@@ -91,9 +84,7 @@ const OtherUserProfile: React.FC = () => {
     };
 
     loadBooksForTab();
-  }, [activeTab, profileId]); // Adicionado profileId nas dependências
-
-  // ... (Handlers handleBookClick, handleSave, etc permanecem iguais)
+  }, [activeTab, profileId]); 
 
   if (profileLoading) {
     return (
@@ -122,7 +113,6 @@ const OtherUserProfile: React.FC = () => {
     <div className="min-h-screen bg-gray-50 py-8 animate-fade-in">
       <div className="max-w-7xl mx-auto px-4">
         
-        {/* Renderização condicional básica */}
         {isEditMode ? (
           <ProfileEditForm 
             perfilOriginal={userProfile} 

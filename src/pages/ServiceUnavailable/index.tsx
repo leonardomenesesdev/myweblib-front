@@ -6,7 +6,7 @@ const ServiceUnavailable: React.FC = () => {
   const navigate = useNavigate();
 
   const handleRetry = () => {
-    window.location.href = '/'; // Força um recarregamento real da página
+    window.location.href = '/';
   };
 
   const handleLogin = () => {
@@ -16,14 +16,11 @@ const ServiceUnavailable: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden flex items-center justify-center p-4">
-      {/* Fundo Gradiente (Mesmo do Login para consistência visual) */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-slate-900 to-black" />
       
-      {/* Elementos decorativos */}
       <div className="absolute top-20 left-10 w-72 h-72 bg-white/5 rounded-full blur-3xl" />
       <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
 
-      {/* Cartão de Erro (Glassmorphism) */}
       <div className="relative z-10 w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-8 text-center animate-fade-in">
         
         <div className="mx-auto w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mb-6 border border-red-500/30">

@@ -1,41 +1,33 @@
 import React, { useState, useEffect } from "react";
 import { Search, X } from "lucide-react";
-import { useDebounce } from "@/hooks/useDebounce"; // Ajuste o import conforme sua estrutura
+import { useDebounce } from "@/hooks/useDebounce"; 
 
 export interface SearchBarProps {
   onSearch?: (query: string) => void;
   placeholder?: string;
   className?: string;
-  delay?: number; // Opcional: permite customizar o tempo se necessário
+  delay?: number; 
 }
 
 export const SearchBar: React.FC<SearchBarProps> = ({
   onSearch,
   placeholder = "Buscar livros ou usuários...",
   className = "",
-  delay = 500 // Padrão de 500ms é excelente para UX
+  delay = 500 
 }) => {
-  // 1. Estado local imediato (o que o usuário vê digitando)
   const [query, setQuery] = useState("");
   
-  // 2. Estado com atraso (o que será enviado para a busca)
   const debouncedQuery = useDebounce(query, delay);
-
-  // 3. Efeito que dispara a busca apenas quando o valor debounced muda
   useEffect(() => {
-    // Evita disparar na primeira renderização se estiver vazio (opcional, depende da regra de negócio)
-    // Aqui, sempre notificamos o pai para garantir sincronia
     onSearch?.(debouncedQuery);
   }, [debouncedQuery, onSearch]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setQuery(e.target.value);
-    // Nota: Não chamamos onSearch aqui. O useEffect acima fará isso.
   };
 
   const handleClear = () => {
     setQuery("");
-    // O useEffect vai capturar a mudança para "" e notificar o pai automaticamente
   };
 
   return (

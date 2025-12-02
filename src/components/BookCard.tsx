@@ -1,5 +1,3 @@
-// src/components/BookCard.tsx
-
 import React from 'react';
 import { Star, BookOpen, Heart } from 'lucide-react';
 import type { Book } from '../types/Book';
@@ -23,12 +21,11 @@ const BookCard: React.FC<BookCardProps> = ({
   onLikeClick,
   isLiked = false,
 }) => {
-  // Pega a primeira categoria para exibir como badge
+  // badge da categoria, pega a primeira
   const primeiraCategoria = livro.categorias && livro.categorias.length > 0 
     ? livro.categorias[0] 
     : null;
 
-  // Mapear nomes das categorias para português
   const categoriasEmPortugues: Record<string, string> = {
     FICCAO: "Ficção",
     FANTASIA: "Fantasia",
@@ -119,7 +116,7 @@ const BookCard: React.FC<BookCardProps> = ({
         )}
       </div>
 
-      {/* Informações do Livro */}
+      {/* infos do livro */}
       <div className="p-3 flex-1 flex flex-col justify-between">
         <div>
           <h3 className="font-semibold text-sm text-gray-800 line-clamp-2 mb-1 leading-tight">
@@ -130,7 +127,7 @@ const BookCard: React.FC<BookCardProps> = ({
           </p>
         </div>
 
-        {/* Avaliação */}
+        {/* avaliacao*/}
         {rating > 0 && (
           <div className="flex items-center gap-1">
             <div className="flex">

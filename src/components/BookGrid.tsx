@@ -1,8 +1,6 @@
-// src/components/BookGrid.tsx
-
 import React from 'react';
-import type { Book } from '../types/Book'; // Ajuste o caminho conforme necessário
-import BookCard  from './BookCard'; // Componente BookCard criado acima
+import type { Book } from '../types/Book'; 
+import BookCard  from './BookCard'; 
 
 interface BookGridProps {
   livros: Book[];

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 
-// EXPORTAR as interfaces para uso externo
 export interface FormField {
   name: string;
   type: 'text' | 'email' | 'password';

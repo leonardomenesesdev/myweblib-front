@@ -1,5 +1,3 @@
-// src/components/BookRow.tsx
-
 import React from 'react';
 import BookCard from './BookCard';
 import type { Book } from '../types/Book';

@@ -1,5 +1,3 @@
-// src/types/Book.ts
-
 export interface Book {
   id: number;
   titulo: string;
@@ -40,8 +38,7 @@ export type EnumCategoria =
   | "SAUDE"
   | "ESPORTES";
 
-// Mapeamento de categorias para exibição em português
-// Mapeamento de categorias para exibição em português
+
 export const CATEGORIA_LABELS: Record<EnumCategoria, string> = {
   FICCAO: "Ficção",
   FANTASIA: "Fantasia",

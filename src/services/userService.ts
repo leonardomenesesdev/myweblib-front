@@ -93,15 +93,10 @@ export async function getLivrosFavoritos(userId: number): Promise<Book[]> {
 }
 
 export const updateUserProfile = async (userId: number, data: Partial<UserProfile>): Promise<UserProfile> => {
-  // Preparamos o payload apenas com o que pode ser editado
-  // Verifique se o seu Backend (Entity Usuario) tem o campo 'bio' e 'avatar'. 
-  // Se não tiver, o backend pode ignorar ou dar erro dependendo da config do Jackson.
   const payload = {
     nome: data.nome,
     email: data.email
   };
-
-  // Chama o endpoint PUT /user/{id} definido no seu UsuarioController
   const response = await api.put<UserProfile>(`/user/${userId}`, payload);
   return response.data;
 };

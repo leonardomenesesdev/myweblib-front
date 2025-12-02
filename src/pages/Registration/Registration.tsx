@@ -65,7 +65,7 @@ async function handleRegister(values: any) {
   };
 
   try {
-    setErrorMessage(""); // limpa erro antes de enviar
+    setErrorMessage(""); 
     
     const response = await registerUser(payload);
     console.log("Usuário criado:", response);

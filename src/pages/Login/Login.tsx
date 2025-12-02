@@ -41,8 +41,6 @@ const Login: React.FC = () => {
     try {
       const response = await loginUser({
         email: values.email,
-        // Backend geralmente espera 'password'. Se seu DTO Java usar 'senha', altere aqui.
-        // Vou usar 'password' baseado no padrão Spring Security AuthenticationDTO
         password: values.password, 
       } as any);
 
@@ -81,18 +79,14 @@ const Login: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden flex items-center justify-center p-4">
-      {/* Background gradiente azul Unifor */}
       <div className="absolute inset-0 bg-linear-to-br from-blue-700 via-blue-800 to-slate-900" />
       
-      {/* Elementos decorativos de fundo (Mantidos do seu design) */}
       <div className="absolute top-20 left-10 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" />
       <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
       <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-white/5 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '2s' }} />
       
-      {/* Container principal */}
       <div className="relative w-full max-w-md z-10">
         
-        {/* Feedback de Erro (Novo) */}
         {errorMessage && (
           <div className="bg-red-500/20 border border-red-500/50 text-red-100 px-4 py-3 rounded-lg mb-4 text-center backdrop-blur-sm animate-fade-in">
             {errorMessage}
@@ -109,7 +103,6 @@ const Login: React.FC = () => {
           footerContent={footerContent}
         />
 
-        {/* Texto institucional */}
         <div className="mt-6 text-center">
           <p className="text-white/60 text-xs">
             © 2025 Universidade de Fortaleza - Todos os direitos reservados

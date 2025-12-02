@@ -55,7 +55,7 @@ const Category: React.FC<CategoryProps> = ({ categoria, livros, onBookClick }) =
         {CATEGORIA_LABELS[categoria]}
       </h2>
 
-      {/* Container com Scroll Horizontal */}
+    
       <div className="relative group">
         {/* Botão Esquerdo */}
         {canScrollLeft && (
@@ -68,7 +68,7 @@ const Category: React.FC<CategoryProps> = ({ categoria, livros, onBookClick }) =
           </button>
         )}
 
-        {/* Grid de Livros com Scroll */}
+        {/*grid c scroll*/}
         <div 
           ref={scrollContainerRef}
           className="flex gap-4 overflow-x-auto scrollbar-hide px-6 py-2"

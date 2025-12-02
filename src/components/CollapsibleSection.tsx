@@ -22,7 +22,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
 }) => {
   return (
     <section className={`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all hover:shadow-md ${className}`}>
-      {/* Header Clicável */}
+      {/*header do colapsador*/}
       <button
         onClick={onToggle}
         className="w-full flex items-center justify-between p-6 hover:bg-gray-50 transition-colors group"
@@ -50,7 +50,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
         </div>
       </button>
       
-      {/* Conteúdo Retrátil */}
+      {/* cont retrátil */}
       <div
         className={`transition-all duration-300 ease-in-out ${
           isExpanded 

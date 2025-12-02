@@ -27,7 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSearch
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const location = useLocation(); // Hook para pegar a localização atual
+  const location = useLocation(); //hook pra pegar a posição atual da rota
 
   // Função auxiliar para definir o estilo do botão baseado na rota
   const getNavItemClass = (path: string) => {

@@ -15,8 +15,8 @@ import {
   getPerfilCompleto,
   getLivrosFavoritos,
   updateUserProfile,
-  deleteUserAccount, // ✅ Importe a função de deletar
-  logoutUser         // ✅ Importe o logout
+  deleteUserAccount, 
+  logoutUser        
 } from "@/services/userService";
 
 const UserProfilePage: React.FC = () => {
@@ -29,7 +29,6 @@ const UserProfilePage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
 
-  // ✅ Novos estados para o modal de exclusão
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -37,7 +36,6 @@ const UserProfilePage: React.FC = () => {
   const [bookList, setBookList] = useState<Book[]>([]);
   const [booksLoading, setBooksLoading] = useState(false);
 
-  // 1. Carrega dados do Usuário
   useEffect(() => {
     const loadProfile = async () => {
       const userId = getCurrentUserId();
@@ -61,7 +59,6 @@ const UserProfilePage: React.FC = () => {
     loadProfile();
   }, [navigate]);
 
-  // 2. Carrega Livros
   useEffect(() => {
     const loadBooksForTab = async () => {
       setBooksLoading(true);
@@ -97,7 +94,6 @@ const UserProfilePage: React.FC = () => {
     loadBooksForTab();
   }, [activeTab]); 
 
-  // Handlers
   const handleBookClick = (livro: Book) => {
     navigate(`/livro/${livro.id}`);
   };
@@ -107,16 +103,14 @@ const handleSave = async (updatedData: any) => {
 
     setIsSaving(true);
     try {
-        // 1. Envia para o backend (mas ignoramos o retorno confuso dele por enquanto)
         await updateUserProfile(userProfile.id, updatedData);
         
         const novoPerfil: UserProfile = {
-            ...userProfile,           // Mantém ID, DataCadastro e Estatísticas intocados
-            nome: updatedData.nome,   // Atualiza Nome
+            ...userProfile,          
+            nome: updatedData.nome,   
             email: updatedData.email, 
         };
         
-        // Atualiza a tela instantaneamente
         setUserProfile(novoPerfil);
         
         setIsEditMode(false);
@@ -130,24 +124,17 @@ const handleSave = async (updatedData: any) => {
     }
   };
 
-  // ✅ Abre o modal ao clicar em excluir no Header
   const handleDeleteClick = () => {
     setIsDeleteModalOpen(true);
   };
 
-  // ✅ Lógica Real de Exclusão
   const confirmDelete = async () => {
     if (!userProfile) return;
 
     setIsDeleting(true);
     try {
-      // 1. Chama o backend para apagar o usuário
       await deleteUserAccount(userProfile.id);
-      
-      // 2. Limpa sessão local
       logoutUser();
-      
-      // 3. Redireciona para login
       navigate('/login');
       
     } catch (error) {
@@ -196,7 +183,7 @@ const handleSave = async (updatedData: any) => {
             profile={userProfile} 
             isUserProfile={true} 
             onEdit={() => setIsEditMode(true)}
-            onDelete={handleDeleteClick} // ✅ Passa a função que abre o modal
+            onDelete={handleDeleteClick} 
           />
         )}
 
@@ -245,7 +232,6 @@ const handleSave = async (updatedData: any) => {
         )}
       </div>
 
-      {/* ✅ MODAL DE EXCLUSÃO */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100">

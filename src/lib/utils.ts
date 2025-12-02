@@ -5,10 +5,6 @@ import type { Book } from '../types/Book';
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
-
-// utils/groupBooks.ts
-
-
 export function groupBooksByGenre(books: Book[]) {
   const map: Record<string, Book[]> = {};
 

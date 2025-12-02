@@ -54,33 +54,25 @@ export const getByAutorOrTitulo = async (query: string): Promise<Book[]> => {
   return response.data;
 }
 
-/**
- * Buscar livros por categoria
- */
+
 export const getLivrosPorCategoria = async (categoria: string): Promise<Book[]> => {
   const response = await api.get(`/api/livro/filtrar/${categoria}`);
   return response.data;
 };
 
-/**
- * Criar novo livro (ADMIN)
- */
+
 export const criarLivro = async (livro: Partial<Book>): Promise<Book> => {
   const response = await api.post("/api/livro", livro);
   return response.data;
 };
 
-/**
- * Atualizar livro (ADMIN)
- */
+
 export const atualizarLivro = async (id: number, livro: Partial<Book>): Promise<Book> => {
   const response = await api.put(`/api/livro/${id}`, livro);
   return response.data;
 };
 
-/**
- * Deletar livro (ADMIN)
- */
+
 export const deletarLivro = async (id: number): Promise<void> => {
   await api.delete(`/api/livro/${id}`);
 };

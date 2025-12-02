@@ -24,8 +24,8 @@ export interface BookStatistics {
   queroLer: number;
   lendo: number;
   lido: number;
-  favoritos: number;  // Backend manda 0 por enquanto, mas manda
-  avaliacoes: number; // Backend manda 0 por enquanto, mas manda
+  favoritos: number;  
+  avaliacoes: number; 
 }
 
 export interface UserProfile {
@@ -35,8 +35,7 @@ export interface UserProfile {
   avatar?: string;
   bio?: string;
   dataCadastro: string; 
-  estatisticas: BookStatistics; // ✅ O objeto mágico
+  estatisticas: BookStatistics; 
 }
 
-// Adicionei aqui para facilitar
 export type TabType = 'quero-ler' | 'lendo' | 'lido' | 'favoritos';

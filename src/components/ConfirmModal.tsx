@@ -9,7 +9,7 @@ interface ConfirmModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  isDestructive?: boolean; // Se true, o botão de confirmação fica vermelho (para ações de deletar/banir)
+  isDestructive?: boolean; 
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -25,11 +25,9 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    // Z-Index 60 para garantir que fique acima de outros modais (como o de cadastro que geralmente é 40 ou 50)
     <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 relative">
         
-        {/* Botão X para fechar */}
         <button 
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
@@ -57,7 +55,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             <button
               onClick={() => {
                 onConfirm();
-                onClose(); // Fecha o modal automaticamente ao confirmar
+                onClose(); 
               }}
               className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors shadow-sm ${
                 isDestructive 
