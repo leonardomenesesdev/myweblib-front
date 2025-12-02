@@ -1,6 +1,6 @@
 import React from 'react';
 import { BookOpen, Heart, Star } from 'lucide-react';
-import { type Book } from "@/types/Book"; // Use seu tipo Book global se possível
+import { type Book } from "@/types/Book"; 
 
 interface ProfileBookListProps {
   books: Book[];
@@ -26,7 +26,9 @@ export const ProfileBookList: React.FC<ProfileBookListProps> = ({ books, isFavor
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
       {books.map((book) => (
         <div key={book.id} className="group cursor-pointer"  onClick={() => onClick?.(book)}>
-          <div className="relative mb-3 overflow-hidden rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
+          <div 
+            className="relative w-full mb-3 overflow-hidden rounded-xl shadow-sm hover:shadow-md transition-all duration-300 bg-gray-100"
+            style={{ aspectRatio: '2/3' }}>
             <img
               src={book.capa}
               alt={book.titulo}
